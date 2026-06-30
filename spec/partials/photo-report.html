@@ -1,0 +1,36 @@
+<div class="panel spec">
+  <h2>Implementation: Photo Report</h2>
+  <p class="panel-hint">New blueprint over the existing headless generator. No PyQt5.</p>
+
+  <h3>What it does</h3>
+  <p>Builds a branded photo-report PDF from a folder of job images plus claim information. Images are resized and JPEG-compressed to fit a max file size; the PDF carries company branding, logo, header, footer, and one image per page with auto-detected EXIF dates.</p>
+
+  <h3>Existing code to call (headless, no Qt)</h3>
+  <ul>
+    <li><code>restoration_common.PhotoReportPDF(output_path, job_info, company_config, logo_path=None)</code> then <code>.generate(image_files, progress_callback=None, max_size_mb=...)</code>.</li>
+    <li><code>restoration_common.load_companies()</code>, <code>get_company_by_id()</code>, <code>find_logo()</code>, <code>get_image_files()</code>, <code>generate_output_filename()</code>.</li>
+    <li><code>restoration_common.fetch_job_info_from_url(url)</code> for CRM prefill.</li>
+  </ul>
+
+  <h3>job_info dict keys</h3>
+  <p><code>customer_name</code>, <code>claim_number</code>, <code>job_location</code>, <code>job_id</code>, <code>photo_title</code>, <code>photo_date</code> (optional; auto-detected from EXIF if blank).</p>
+
+  <h3>Target</h3>
+  <pre>tools/photo_report/
+  __init__.py     blueprint, url_prefix=/photo-report
+  routes.py       GET form; POST -> PhotoReportPDF.generate -> send_file(pdf)
+  forms.py        field set + validation
+  templates/      form (layout seed: mockup photo-report page)</pre>
+
+  <h3>Web form -> generator mapping</h3>
+  <ul>
+    <li>Company dropdown -> <code>company_config</code> via <code>get_company_by_id</code>.</li>
+    <li>Job fields -> the <code>job_info</code> dict above.</li>
+    <li>Photos: <code>&lt;input type=file multiple&gt;</code> uploaded to a temp dir -> the <code>image_files</code> list. (The desktop folder picker becomes a multi-file upload.)</li>
+    <li>Max file size (MB) -> <code>max_size_mb</code>.</li>
+    <li>"Fetch from CRM" -> <code>fetch_job_info_from_url</code>, prefills the job fields. Network feature: see graceful degradation.</li>
+  </ul>
+
+  <h3>Output</h3>
+  <p>Stream the PDF back with <code>send_file(..., as_attachment=True)</code>; filename from <code>generate_output_filename</code>. No server-side retention needed.</p>
+</div>

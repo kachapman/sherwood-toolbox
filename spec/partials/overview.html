@@ -1,0 +1,22 @@
+<div class="panel spec">
+  <h2>Overview and architecture</h2>
+
+  <h3>What this file is</h3>
+  <p>A self-contained build spec for the Sherwood Toolbox. It bundles the signed-off visual mockup with the instructions to make each tool work locally, plus a parked appendix for the benched web-server deployment. It opens in any browser with no server and no external requests.</p>
+
+  <h3>The toolbox</h3>
+  <p>One Flask app presents four tools behind a shared hub: Estimate Enhancer, Ice and Water Shield Calculator, Photo Report, and Documents. Each tool is an isolated blueprint package under <code>toolbox/tools/&lt;name&gt;/</code>. The app runs locally: a launcher serves it on <code>127.0.0.1</code> and opens the browser.</p>
+
+  <h3>The registry is the keystone</h3>
+  <p><code>toolbox/registry.py</code> is the single source of truth: a list of tool specs (id, label, icon, url_prefix, blueprint, offline_capable, description). The hub tiles, the sidebar nav, and blueprint registration all read it. Adding a tool means dropping a package and adding one registry entry.</p>
+
+  <h3>Reused, not rebuilt</h3>
+  <ul>
+    <li>Estimate Enhancer: the existing Flask routes and PDF logic, refactored into a blueprint.</li>
+    <li>IWS: the existing static calculator, vendored in.</li>
+    <li>Photo Report and Documents: new web forms over the existing headless <code>restoration_common</code> generators (zero PyQt5).</li>
+  </ul>
+
+  <h3>Run modes</h3>
+  <p>Active: local standalone (this spec). Parked: web server (see the Web Server appendix), preserved so it can be revived without re-deriving it.</p>
+</div>

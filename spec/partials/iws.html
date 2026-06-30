@@ -1,0 +1,25 @@
+<div class="panel spec">
+  <h2>Implementation: Ice and Water Shield Calculator</h2>
+  <p class="panel-hint">Pure static. The least work of the four.</p>
+
+  <h3>What it does</h3>
+  <p>Client-side calculator: from roof size, pitch, eave and valley lengths, soffit depth, wall and stud parameters it computes ice-and-water-shield coverage in two modes (Actual SF and Full Roll). All math runs in the browser; no backend.</p>
+
+  <h3>Source to vendor</h3>
+  <ul>
+    <li><code>~/.local/src/SyncedViruses/VanguardIWSCalc/src/</code> -> <code>tools/iws/static/</code> (index.html, css/, js/calculator.js, assets/).</li>
+  </ul>
+  <p>The <code>src/</code> already carries the Sherwood logo and the title "Ice Barrier Calculator"; it contains zero <code>vanguard</code> strings. The rename is satisfied by not carrying the old <code>VanguardIWSCalc</code> directory name into the toolbox.</p>
+
+  <h3>Target</h3>
+  <pre>tools/iws/
+  __init__.py     blueprint, serves the calculator under /iws
+  static/         the vendored src (html/js/css/assets)</pre>
+  <p>The blueprint serves <code>static/index.html</code> at <code>/iws</code> and the assets beside it. To share the toolbox chrome, wrap the calculator body in <code>base.html</code>; to keep it verbatim, serve it as-is inside the content frame. Wrapping is preferred for a consistent sidebar.</p>
+
+  <h3>Input fields (mirror in the chrome if wrapped)</h3>
+  <p>Project name, address, roof size (SQ), inside exterior wall (in), predominant pitch (/12), eave length (LF), valley length (LF), soffit depth (in), stud size (2x4 / 2x6), exterior type (vinyl / wood / stucco / brick), calculation mode (eave+valley / eave only).</p>
+
+  <h3>Edit point</h3>
+  <p>The coverage math lives in <code>tools/iws/static/js/calculator.js</code>. Change the formula there; no Python involved.</p>
+</div>

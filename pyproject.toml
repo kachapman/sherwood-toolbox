@@ -1,0 +1,37 @@
+[project]
+name = "sherwood-toolbox"
+version = "0.1.0"
+description = "Local toolbox of estimating tools (hub + four tools) as one Flask app"
+requires-python = ">=3.9"
+dependencies = [
+    "flask>=3.0",
+    "waitress>=3.0",
+    "PyMuPDF",
+    "pypdf",
+    "pyspellchecker",
+    "reportlab",
+    "Pillow",
+    "requests",
+    "beautifulsoup4",
+    # restoration-common provides the headless PDF generators + CRM fetch for
+    # the Photo Report and Documents tools. Installed from the local path.
+    # "restoration-common @ file:///home/workpc/.local/share/RestorationToolkit",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["toolbox*"]
+
+[tool.setuptools.package-data]
+toolbox = [
+    "core/templates/*.html",
+    "core/static/css/*.css",
+    "core/static/img/*",
+    "tools/*/templates/*.html",
+    "tools/*/static/css/*.css",
+    "tools/*/static/js/*.js",
+    "tools/*/static/img/*",
+]

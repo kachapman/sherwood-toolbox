@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Photo Report - Sherwood Toolbox{% endblock %}
+{% block page_title %}Photo Report{% endblock %}
+{% block page_subtitle %}Build a branded photo report PDF{% endblock %}
+
+{% block content %}
+<form id="prForm">
+  <div class="panel">
+    <h2>Fetch from CRM (optional)</h2>
+    <p class="panel-hint">Paste a CRM job URL to auto-fill customer, claim, and location.</p>
+    <div class="inline-row">
+      <div class="field">
+        <label for="crmUrl">CRM job URL</label>
+        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+      </div>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+    </div>
+    <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
+    {% include "_crm_credentials.html" %}
+  </div>
+
+  <div class="panel">
+    <h2>Company and job</h2>
+    <p class="panel-hint">Fields used for the report header, footer, and filename.</p>
+    <div class="form-grid">
+      <div class="field">
+        <label for="company_id">Company</label>
+        <select id="company_id" name="company_id">
+          {% for c in companies %}<option value="{{ c.id }}" data-color="{{ c.primary_color or '' }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="job_id">Job ID</label>
+        <input type="text" id="job_id" name="job_id" placeholder="Job number">
+      </div>
+      <div class="field">
+        <label for="customer_name">Customer name</label>
+        <input type="text" id="customer_name" name="customer_name" placeholder="Insured / property owner">
+      </div>
+      <div class="field">
+        <label for="claim_number">Claim number</label>
+        <input type="text" id="claim_number" name="claim_number" placeholder="Insurance claim number">
+      </div>
+      <div class="field full">
+        <label for="job_location">Location</label>
+        <input type="text" id="job_location" name="job_location" placeholder="Property address">
+      </div>
+      <div class="field">
+        <label for="photo_title">Photo report title</label>
+        <input type="text" id="photo_title" name="photo_title" placeholder="Photo Report">
+      </div>
+      <div class="field">
+        <label for="photo_date">Date (optional)</label>
+        <input type="text" id="photo_date" name="photo_date" placeholder="Leave blank to use photo EXIF dates">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Photos</h2>
+    <p class="panel-hint">Select the job photos to include. Images are resized and compressed to fit the size limit.</p>
+    <div class="form-grid">
+      <div class="field full">
+        <label for="photos">Photo files</label>
+        <input type="file" id="photos" name="photos" accept="image/*" multiple>
+        <p class="muted-note" id="photoCount" style="margin-top:6px;">No photos selected.</p>
+      </div>
+      <div class="field">
+        <label for="max_size_mb">Max file size</label>
+        <div class="with-unit"><input type="number" id="max_size_mb" name="max_size_mb" value="10" step="0.5" min="0.5"><span class="unit">MB</span></div>
+      </div>
+    </div>
+    <div class="button-row">
+      <button type="submit" class="btn btn-primary company-tinted" id="genBtn">Generate Report PDF</button>
+      <span class="muted-note" id="genMsg"></span>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const PR = {
+    crm: "{{ url_for('photo_report.crm_fetch') }}",
+    generate: "{{ url_for('photo_report.generate') }}",
+  };
+  function $(id) { return document.getElementById(id); }
+
+  $('photos').addEventListener('change', e => {
+    const n = e.target.files.length;
+    $('photoCount').textContent = n ? `${n} photo${n === 1 ? '' : 's'} selected.` : 'No photos selected.';
+  });
+
+  const crmBtn = $('crmFetchBtn');
+  if (crmBtn) crmBtn.addEventListener('click', async () => {
+    const msg = $('crmMsg');
+    msg.textContent = 'Looking up...';
+    const fd = new FormData();
+    fd.append('url', $('crmUrl').value);
+    try {
+      const r = await fetch(PR.crm, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
+      const info = data.info || {};
+      const map = { customer_name: 'customer_name', claim_number: 'claim_number',
+                    job_location: 'job_location', job_id: 'job_id' };
+      Object.keys(map).forEach(k => { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
+      msg.textContent = 'Fields filled from CRM.';
+    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
+  });
+
+  $('prForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('genBtn'), msg = $('genMsg');
+    btn.disabled = true; msg.textContent = 'Generating...';
+    try {
+      const r = await fetch(PR.generate, { method: 'POST', body: new FormData($('prForm')) });
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/pdf')) {
+        const blob = await r.blob();
+        const cd = r.headers.get('content-disposition') || '';
+        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        const name = m ? decodeURIComponent(m[1]) : 'photo_report.pdf';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+        msg.textContent = 'Downloaded ' + name;
+      } else {
+        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
+        msg.textContent = data.error || 'Generation failed.';
+      }
+    } catch (e) { msg.textContent = 'Error: ' + e.message; }
+    btn.disabled = false;
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,47 @@
+<div class="panel spec">
+  <h2>Implementation: Estimate Enhancer</h2>
+  <p class="panel-hint">Port the existing Flask app into a mountable blueprint.</p>
+
+  <h3>What it does</h3>
+  <p>Takes a construction estimate PDF and returns an enhanced copy: spell-checked against a construction vocabulary, zero-quantity line items flagged, clickable links between "see image" references and the photo pages, user terms highlighted, and selected IRC code-reference PDFs appended.</p>
+
+  <h3>Source to port</h3>
+  <ul>
+    <li><code>EstimateEnhancer/pdf-app/app.py</code> (module-level Flask, 8 routes, 1325 lines)</li>
+    <li><code>EstimateEnhancer/pdf-app/utils/</code> (markup_bridge, spell_utils, spell_vocab)</li>
+    <li><code>EstimateEnhancer/pdf-app/templates/index.html</code>, <code>static/</code></li>
+    <li><code>EstimateEnhancer/pdf-app/Add Image Links Fork</code> (subprocess helper)</li>
+  </ul>
+
+  <h3>Target layout</h3>
+  <pre>tools/estimate_enhancer/
+  __init__.py     blueprint factory, url_prefix=/estimate-enhancer
+  routes.py       the 8 routes, URLs via url_for / injected base
+  pdf_ops.py      analyze + process logic (PyMuPDF, spellcheck) + utils
+  fork/           the "Add Image Links Fork" script, path-configured
+  templates/  static/</pre>
+
+  <h3>Routes (ported as blueprint routes)</h3>
+  <table class="lineitems">
+    <thead><tr><th>Method</th><th>Path</th><th>Function</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td>/</td><td>index</td></tr>
+      <tr><td>POST</td><td>/analyze</td><td>analyze</td></tr>
+      <tr><td>POST</td><td>/process</td><td>process</td></tr>
+      <tr><td>GET</td><td>/download/&lt;filename&gt;</td><td>download_file</td></tr>
+      <tr><td>GET</td><td>/uploads/&lt;filename&gt;</td><td>serve_upload</td></tr>
+      <tr><td>GET, POST</td><td>/test</td><td>test (health)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Coupling fixes (the only real work)</h3>
+  <ol>
+    <li><strong>Absolute URLs in template JS.</strong> <code>templates/index.html</code> hardcodes <code>/analyze</code>, <code>/process</code>, <code>/download/</code>, <code>/uploads/</code> (lines 616, 771, 809, 815) and <code>/static/</code> (lines 7, 364). Inject the blueprint base path into the page (a <code>data-base</code> attribute or a JS const from <code>url_for</code>) and build requests as <code>${BASE}/analyze</code>. Swap static refs to <code>url_for('estimate_enhancer.static', ...)</code>.</li>
+    <li><strong>Image-link payload.</strong> <code>build_image_link_payload</code> emits an absolute <code>/uploads/{file}#page=N</code> (app.py:765). Prefix it with the blueprint base.</li>
+    <li><strong>Filesystem paths.</strong> <code>UPLOAD_FOLDER='uploads'</code> and <code>ATTACHMENTS_FOLDER='attachments'</code> (app.py:57-58) are cwd-relative. Read them from <code>toolbox/config.py</code> (absolute paths).</li>
+    <li><strong>Fork path.</strong> <code>process_with_fork</code> resolves the helper relative to the file then falls back to <code>~/Documents/App Projects/...</code> (app.py:1260-1262). Replace with a single <code>ADD_IMAGE_LINKS_FORK_PATH</code> from config pointing at <code>tools/estimate_enhancer/fork/</code>. It is invoked <code>python3 &lt;fork&gt; &lt;input_pdf&gt;</code> with <code>PDF_HIGHLIGHT_RULES_JSON</code> in the env.</li>
+  </ol>
+
+  <h3>Dependencies</h3>
+  <p><code>PyMuPDF</code> (fitz), <code>pypdf</code>, <code>pyspellchecker</code>. All have Linux wheels.</p>
+</div>

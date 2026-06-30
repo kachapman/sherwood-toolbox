@@ -1,0 +1,24 @@
+<div class="panel spec">
+  <h2>Maintainability and LLM-navigability</h2>
+  <p class="panel-hint">The structure is designed so a future edit lands in a small, findable file.</p>
+
+  <h3>STRUCTURE.md is the map</h3>
+  <p>Read it first. One row per meaningful path: its responsibility and "edit here when you want to change X." Examples: <code>tools/iws/static/js/calculator.js</code> for the coverage math; <code>toolbox/registry.py</code> to add or remove a tool; <code>tools/documents/templates</code> for invoice fields.</p>
+
+  <h3>Single sources of truth</h3>
+  <ul>
+    <li><code>toolbox/registry.py</code> for the set of tools (tiles, nav, registration).</li>
+    <li><code>core/templates/base.html</code> + <code>core/static/css/toolbox.css</code> for chrome and styling, defined once; tools extend rather than duplicate.</li>
+    <li><code>toolbox/config.py</code> for paths and flags.</li>
+  </ul>
+
+  <h3>Conventions</h3>
+  <ul>
+    <li>Predictable names so the edit target is found by path: HTTP in <code>routes.py</code>, logic in <code>*_ops.py</code>, forms in <code>forms.py</code>, PDF layout reused from <code>restoration_common</code>.</li>
+    <li>Around 300 lines per file; split by concern. Any unavoidably long file carries <code># === SECTION: name ===</code> banners that grep finds.</li>
+    <li>Every generated artifact (this spec file, any bundled asset) starts with a header naming its source and rebuild command, and is never hand-edited.</li>
+  </ul>
+
+  <h3>Why not one big file</h3>
+  <p>The earlier self-contained mockup was 586 KB. That form is fine as a read-only artifact but a poor place to edit. The real app keeps normal multi-file templates; the single-file form survives only as this generated spec.</p>
+</div>

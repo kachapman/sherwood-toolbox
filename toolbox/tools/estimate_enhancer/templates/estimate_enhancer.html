@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Estimate Enhancer - Sherwood Toolbox{% endblock %}
+{% block page_title %}Estimate Enhancer{% endblock %}
+{% block page_subtitle %}Upload, review, enhance, deliver{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('estimate_enhancer.static', filename='css/ee.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="flow" id="mainRow">
+
+  <div class="step" id="stepUpload" data-state="active">
+    <div class="step-rail"><div class="step-node">1</div></div>
+    <div class="step-body">
+      <h3 class="step-title">Upload</h3>
+      <p class="step-hint">Provide the Xactimate estimate PDF. It is checked for typos, zero quantities, and duplicate photo names.</p>
+      <div class="panel upload-area" id="uploadColumn">
+        <h6>Upload an Xactimate PDF to check for common spelling mistakes and zero quantity issues.</h6>
+        <form id="uploadForm" enctype="multipart/form-data">
+          <input type="file" id="fileInput" name="file" accept=".pdf">
+          <input type="hidden" id="filename" name="filename">
+          <button type="submit" class="btn btn-primary w-100">Analyze PDF</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="stepReview" data-state="pending">
+    <div class="step-rail"><div class="step-node">2</div></div>
+    <div class="step-body">
+      <h3 class="step-title">Review</h3>
+      <p class="step-hint">Issues found during analysis. They never block processing; fix what matters and continue.</p>
+      <div id="resultsColumn" style="display: none;">
+        <div class="panel">
+          <p class="panel-label">Issues Found
+            <button id="copyErrorsBtn" class="btn btn-secondary btn-quiet" style="display:none;">Copy Error Log</button>
+          </p>
+          <div id="errorsSection">
+            <p class="text-muted">Upload a PDF to check for issues</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="stepEnhance" data-state="pending">
+    <div class="step-rail"><div class="step-node">3</div></div>
+    <div class="step-body">
+      <h3 class="step-title">Enhance</h3>
+      <p class="step-hint">Choose highlights and supporting documents. Code references found in the estimate pre-select their IRC documents.</p>
+
+      <div id="highlightCard" style="display: none;">
+        <div class="panel">
+          <p class="panel-label">Highlight Terms</p>
+          <p class="muted-note">Visually mark specified terms with a colored background in the output PDF.</p>
+          {% for n in range(1, 6) %}
+          <div class="highlight-field">
+            <textarea class="highlight-term-input" rows="1" placeholder='Terms, comma-separated; use "quotes, for phrases with commas"' name="highlight_{{ n }}_term" style="resize: none; overflow: hidden;"></textarea>
+            <select name="highlight_{{ n }}_color">
+              <option value="#FAFFA0">Yellow</option>
+              <option value="#FFBCA6">Orange</option>
+              <option value="#66bb6a">Green</option>
+              <option value="#42a5f5">Blue</option>
+              <option value="#ab47bc">Purple</option>
+              <option value="#ff8a65">Coral</option>
+            </select>
+          </div>
+          {% endfor %}
+          <div class="check-row">
+            <input type="checkbox" id="highlightCodeRefs" name="highlight_code_refs">
+            <label for="highlightCodeRefs">Highlight Code References (e.g. IRC R905.2.8.2(3))</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="enhance-grid">
+        <div id="docsCard" style="display: none;">
+          <div class="panel">
+            <p class="panel-label">Attach Documents</p>
+            <p class="muted-note">Select pre-loaded documents to append to the end of the final PDF.</p>
+            {% for doc in documents %}
+            <div class="doc-checkbox">
+              <div class="check-row">
+                <input type="checkbox" value="{{ doc.id }}" id="doc_{{ doc.id }}" name="doc_{{ doc.id }}">
+                <label for="doc_{{ doc.id }}">{{ doc.name }}</label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div id="userDocsCard" style="display: none;">
+          <div class="panel">
+            <p class="panel-label">User PDF Documents</p>
+            <p class="muted-note">Upload your own PDF documents to append to the end of the final file. Examples: Itel/NTS reports, measurement reports (Hover, Eagleview), manufacturer whitepapers.</p>
+            <input type="file" id="userFileInput" name="user_pdf" accept=".pdf" multiple>
+          </div>
+        </div>
+      </div>
+
+      <div id="processSection" style="display: none; margin-top: 14px;">
+        <button id="processBtn" class="btn btn-primary w-100">Process PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="stepDeliver" data-state="pending">
+    <div class="step-rail"><div class="step-node">4</div></div>
+    <div class="step-body">
+      <h3 class="step-title">Deliver</h3>
+      <p class="step-hint">Preview the enhanced estimate, then download the final PDF with links, highlights, and attachments.</p>
+
+      <div id="loading" class="loading" style="display: none;">
+        <div class="spinner-border" role="status"></div>
+        <p id="loadingText">Processing...</p>
+      </div>
+
+      <div id="downloadSection" style="display: none;">
+        <div class="panel download-section">
+          <h6>Processed PDF Ready</h6>
+          <div id="highlightWarning" class="alert-warning" style="display: none;"></div>
+          <p class="small">Documents attached: <span id="docCount">0</span></p>
+          <a id="downloadBtn" href="#" class="btn btn-primary w-100">Download PDF</a>
+        </div>
+
+        <div class="panel" id="previewPanel">
+          <p class="panel-label">Final PDF Preview</p>
+          <p class="muted-note">The finished document with highlights, image links, and attached files. Links are clickable here, just as in the downloaded copy.</p>
+          <iframe id="previewFrame" title="Final PDF preview"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note">We do not use your documents for any other purpose. No user-uploaded document content is retained; uploads are deleted after the enhanced PDF is produced. Provided as is; you are responsible for the content of the documents you process. Sherwood Estimates &copy; 2026.</p>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const EE_URLS = {
+    analyze: "{{ url_for('estimate_enhancer.analyze') }}",
+    process: "{{ url_for('estimate_enhancer.process') }}",
+    download: "{{ url_for('estimate_enhancer.download_file', filename='__F__') }}",
+    uploads: "{{ url_for('estimate_enhancer.serve_upload', filename='__F__') }}",
+  };
+  function eeUrl(tpl, name) { return tpl.replace('__F__', encodeURIComponent(name)); }
+
+  let currentFilename = '';
+  function $(id) { return document.getElementById(id); }
+
+  function setStep(id, state) {
+    const step = $(id);
+    if (!step) return;
+    step.setAttribute('data-state', state);
+    const node = step.querySelector('.step-node');
+    if (node) node.textContent = state === 'done' ? '✓' : node.getAttribute('data-num') || node.textContent;
+  }
+  document.querySelectorAll('.step-node').forEach(n => n.setAttribute('data-num', n.textContent));
+
+  document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files[0]) { alert('Please select a file'); return; }
+
+    const loading = $('loading'), loadingText = $('loadingText');
+    if (loading) loading.style.display = 'block';
+    if (loadingText) loadingText.textContent = 'Analyzing document for errors...';
+
+    ['downloadSection','highlightCard','docsCard','userDocsCard','processSection'].forEach(id => {
+      const el = $(id); if (el) el.style.display = 'none';
+    });
+    const errorsSection = $('errorsSection');
+    if (errorsSection) errorsSection.innerHTML = '<p class="text-muted">Analyzing...</p>';
+
+    setStep('stepUpload', 'active'); setStep('stepReview', 'pending');
+    setStep('stepEnhance', 'pending'); setStep('stepDeliver', 'pending');
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', EE_URLS.analyze, false);
+      xhr.send(formData);
+      if (xhr.status !== 200) throw new Error('Server returned ' + xhr.status);
+      const data = JSON.parse(xhr.responseText);
+      if (data.error) { alert(data.error); return; }
+
+      currentFilename = data.filename;
+      const filenameEl = $('filename');
+      if (filenameEl) filenameEl.value = data.filename;
+
+      if (errorsSection) {
+        errorsSection.innerHTML = '';
+        if (data.has_errors) {
+          data.errors.forEach(err => {
+            const div = document.createElement('div');
+            div.className = 'error-item';
+            const typeLabel = err.type ? `<span class="badge bg-info">${err.type}</span> ` : '';
+            div.innerHTML = `<strong>Page ${err.page}, Line ${err.line}</strong><br>${typeLabel}<span class="text-dark">${err.description}</span><br><small class="text-muted">${err.units}</small>`;
+            errorsSection.appendChild(div);
+          });
+          const copyBtn = $('copyErrorsBtn');
+          const errorLog = data.errors.map(e => `Page ${e.page}, Line ${e.line}: ${e.description} ${e.units}`).join('\n');
+          if (copyBtn) {
+            copyBtn.style.display = 'inline-block';
+            copyBtn.onclick = function() {
+              navigator.clipboard.writeText(errorLog).then(() => {
+                copyBtn.textContent = 'Copied';
+                setTimeout(() => { copyBtn.textContent = 'Copy Error Log'; }, 2000);
+              }).catch(() => alert('Clipboard not available in this browser context.'));
+            };
+          }
+        } else {
+          errorsSection.innerHTML = '<p class="text-success">No issues found</p>';
+        }
+
+        const docCheckboxes = document.querySelectorAll('#docsCard input[type="checkbox"]');
+        docCheckboxes.forEach(cb => {
+          cb.checked = false;
+          const oldBadge = cb.parentElement.querySelector('.auto-selected-badge');
+          if (oldBadge) oldBadge.remove();
+        });
+        (data.auto_selected_docs || []).forEach(id => {
+          docCheckboxes.forEach(cb => {
+            if (cb.name === 'doc_' + id) {
+              cb.checked = true;
+              const label = cb.parentElement.querySelector('label');
+              if (label && !label.querySelector('.auto-selected-badge')) {
+                label.insertAdjacentHTML('beforeend',
+                  ' <span class="badge bg-success auto-selected-badge" title="Matched a code reference in the estimate">auto</span>');
+              }
+            }
+          });
+        });
+
+        ['highlightCard','docsCard','userDocsCard','processSection','resultsColumn'].forEach(id => {
+          const el = $(id); if (el) el.style.display = 'block';
+        });
+        setStep('stepUpload', 'done'); setStep('stepReview', 'done');
+        setStep('stepEnhance', 'active');
+        growTermInputs();
+      }
+
+      if (loading) {
+        loading.innerHTML = '<div class="spinner-border" role="status"></div><p>Complete!</p>';
+        setTimeout(() => { if (loading) loading.style.display = 'none'; }, 1200);
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+      const loadingEl = $('loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+    }
+  });
+
+  const processBtn = $('processBtn');
+  if (processBtn) processBtn.addEventListener('click', async () => {
+    const loading = $('loading'), processSection = $('processSection');
+    if (loading) {
+      loading.innerHTML = '<div class="spinner-border" role="status"></div><p id="loadingText">Processing PDF with highlights and attachments...</p>';
+      loading.style.display = 'block';
+    }
+    if (processSection) processSection.style.display = 'none';
+    setStep('stepEnhance', 'done'); setStep('stepDeliver', 'active');
+
+    const formData = new FormData();
+    formData.append('filename', currentFilename);
+    formData.append('confirm', 'yes');
+
+    ['highlight_1','highlight_2','highlight_3','highlight_4','highlight_5'].forEach(id => {
+      const termInput = document.querySelector(`[name="${id}_term"]`);
+      const colorInput = document.querySelector(`[name="${id}_color"]`);
+      if (termInput && termInput.value) {
+        formData.append(`${id}_term`, termInput.value);
+        formData.append(`${id}_color`, colorInput.value);
+      }
+    });
+    const codeRefs = $('highlightCodeRefs');
+    if (codeRefs && codeRefs.checked) formData.append('highlight_code_refs', 'on');
+
+    const docsCard = $('docsCard');
+    if (docsCard && docsCard.style.display !== 'none') {
+      docsCard.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => formData.append(cb.name, 'on'));
+    }
+    const userFileInput = $('userFileInput');
+    if (userFileInput && userFileInput.files.length > 0) {
+      for (let i = 0; i < userFileInput.files.length; i++) formData.append('user_pdf', userFileInput.files[i]);
+    }
+
+    try {
+      const response = await fetch(EE_URLS.process, { method: 'POST', body: formData });
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) { alert('Error processing PDF: ' + text.substring(0, 200)); if (loading) loading.style.display = 'none'; return; }
+
+      if (data.error) {
+        alert(data.error);
+        if (processSection) processSection.style.display = 'block';
+        setStep('stepEnhance', 'active'); setStep('stepDeliver', 'pending');
+        if (loading) loading.style.display = 'none';
+        return;
+      }
+
+      const docCount = $('docCount'), downloadBtn = $('downloadBtn'),
+            downloadSection = $('downloadSection'), highlightWarning = $('highlightWarning'),
+            previewFrame = $('previewFrame');
+      if (docCount) docCount.textContent = data.attachments_added;
+      if (downloadBtn) downloadBtn.href = eeUrl(EE_URLS.download, data.filename);
+      if (highlightWarning) {
+        highlightWarning.textContent = data.highlight_warning || '';
+        highlightWarning.style.display = data.highlight_warning ? 'block' : 'none';
+      }
+      if (previewFrame) previewFrame.src = eeUrl(EE_URLS.uploads, 'processed_' + data.filename);
+      if (downloadSection) downloadSection.style.display = 'block';
+      setStep('stepDeliver', 'done');
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+    if (loading) loading.style.display = 'none';
+  });
+
+  function updateDropdownColor(select) { select.setAttribute('data-color', select.value); }
+  document.querySelectorAll('select[name$="_color"]').forEach(d => {
+    updateDropdownColor(d);
+    d.addEventListener('change', () => updateDropdownColor(d));
+  });
+
+  function growTermInput(ta) {
+    if (!ta.offsetParent) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(38, ta.scrollHeight) + 'px';
+  }
+  function growTermInputs() { document.querySelectorAll('.highlight-term-input').forEach(growTermInput); }
+  document.querySelectorAll('.highlight-term-input').forEach(ta => {
+    ta.addEventListener('input', () => growTermInput(ta));
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+  });
+  growTermInputs();
+</script>
+{% endblock %}

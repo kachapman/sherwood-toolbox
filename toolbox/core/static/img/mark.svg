@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Sherwood Toolbox">
+  <!-- Adaptive favicon mark, transparent background. The fill flips with the
+       browser/OS theme so the mark stays legible on a light or dark tab. -->
+  <style>
+    .mk { fill: #203c23; }
+    @media (prefers-color-scheme: dark) { .mk { fill: #e0e5d5; } }
+  </style>
+  <path class="mk" d="M16 4 L29 14.5 L25.5 14.5 L25.5 27 L18.5 27 L18.5 19 L13.5 19 L13.5 27 L6.5 27 L6.5 14.5 L3 14.5 Z"/>
+</svg>

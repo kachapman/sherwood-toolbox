@@ -1,0 +1,21 @@
+[project]
+name = "restoration-common"
+version = "1.0.0"
+description = "Headless PDF generators and CRM fetch for the Sherwood Toolbox (vendored, no PyQt5)"
+requires-python = ">=3.9"
+dependencies = [
+    "reportlab",
+    "Pillow",
+    "requests",
+    "beautifulsoup4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["restoration_common*"]
+
+[tool.setuptools.package-data]
+restoration_common = ["data/companies.json", "data/logos/*"]

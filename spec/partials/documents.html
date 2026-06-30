@@ -1,0 +1,33 @@
+<div class="panel spec">
+  <h2>Implementation: Documents</h2>
+  <p class="panel-hint">New blueprint; two PDFs per submit. No PyQt5.</p>
+
+  <h3>What it does</h3>
+  <p>Generates an Invoice PDF and a Certificate of Completion PDF from job info, line items, and an optional signature. Line items can include a base charge, preset ITEL (199.80) and NTS (150.00) lines, custom rows, or a CSV import, with a running grand total.</p>
+
+  <h3>Existing code to call (headless, no Qt)</h3>
+  <ul>
+    <li><code>restoration_common.InvoicePDFGenerator(output_path, company_config, job_info, line_items, logo_path=None, signature_path=None, signature_name=None)</code> then <code>.generate()</code>.</li>
+    <li><code>restoration_common.COCPDFGenerator(...)</code> then <code>.generate()</code> (same inputs).</li>
+    <li><code>load_companies</code>, <code>get_company_by_id</code>, <code>get_signature_path</code> / <code>save_signature_for_company</code>, <code>fetch_job_info_from_url</code>.</li>
+  </ul>
+
+  <h3>job_info dict keys</h3>
+  <p><code>customer_name</code>, <code>street</code>, <code>city_state_zip</code>, <code>job_number</code> (required), <code>insurance_claim</code>, <code>sales_rep</code>, <code>note</code>, <code>invoice_number</code> (auto from job_number), <code>invoice_date</code> (default today), <code>terms</code> (default from company), <code>invoice_notes</code>, <code>base_charge</code> ({description, amount}).</p>
+
+  <h3>line_items</h3>
+  <p>A list of <code>(description, amount)</code> tuples assembled from: the base charge (if non-zero), the ITEL and NTS checkboxes, custom table rows, and any CSV import.</p>
+
+  <h3>Target</h3>
+  <pre>tools/documents/
+  __init__.py     blueprint, url_prefix=/documents
+  routes.py       POST -> Invoice + COC generate -> send_file(zip)
+  forms.py        fields, line-item table, signature handling
+  templates/      form (layout seed: mockup documents page)</pre>
+
+  <h3>Signature</h3>
+  <p>Saved signatures are base64 PNGs in <code>~/.config/restoration_toolkit/signatures.json</code>; resolve with <code>get_signature_path</code> to a temp PNG and pass as <code>signature_path</code>. A custom upload overrides it.</p>
+
+  <h3>Output</h3>
+  <p>Generate both PDFs to a temp dir, zip them, <code>send_file</code> the zip. Validation: <code>customer_name</code> and <code>job_number</code> required.</p>
+</div>

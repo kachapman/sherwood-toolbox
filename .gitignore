@@ -1,0 +1,12 @@
+# Local env / runtime
+.env
+*.log
+.venv/
+__pycache__/
+*.pyc
+build/
+*.egg-info/
+
+# Portable bundle artifacts (contain personal data; built, not committed)
+sherwood-toolbox.tar.gz
+config/

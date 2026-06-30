@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ice and Water Shield Calculator - Sherwood Toolbox</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/logo.png" alt="Sherwood logo">
+        <span class="brand-text">Sherwood Toolbox
+          <span class="brand-sub">Estimating tools</span>
+        </span>
+      </div>
+      <ul class="nav">
+        <li><a href="index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Hub</a></li>
+        <li><a href="estimate-enhancer.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 13h6M8 17h4"/></svg>
+          Estimate Enhancer</a></li>
+        <li><a href="iws.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-7 9 7"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/></svg>
+          Ice and Water Shield Calculator</a></li>
+        <li><a href="photo-report.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+          Photo Report</a></li>
+        <li><a href="document-generator.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h6"/></svg>
+          Documents</a></li>
+      </ul>
+      <div class="sidebar-foot">Layout mockup, no backend wired.</div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <h1>Ice and Water Shield Calculator
+          <span class="subtitle">Coverage from roof measurements</span>
+        </h1>
+        <span class="badge">Static mockup</span>
+      </div>
+
+      <div class="content">
+        <div class="panel">
+          <h2>Project and roof inputs</h2>
+          <p class="panel-hint">Same fields as the standalone Ice Barrier Calculator.</p>
+          <div class="form-grid">
+            <div class="field full">
+              <label for="projectName">Project Name</label>
+              <input type="text" id="projectName" placeholder="Insured / property owner name">
+            </div>
+            <div class="field full">
+              <label for="projectAddress">Address</label>
+              <input type="text" id="projectAddress" placeholder="123 Sherwood Rd. Nottinghamshire">
+            </div>
+            <div class="field">
+              <label for="roofSize">Roof Size</label>
+              <div class="with-unit"><input type="number" id="roofSize" placeholder="0.00"><span class="unit">SQ</span></div>
+            </div>
+            <div class="field">
+              <label for="insideWall">Inside Exterior Wall</label>
+              <div class="with-unit"><input type="number" id="insideWall" placeholder="24"><span class="unit">inches</span></div>
+            </div>
+            <div class="field">
+              <label for="roofPitch">Predominant Pitch</label>
+              <div class="with-unit"><input type="number" id="roofPitch" placeholder="6"><span class="unit">/12</span></div>
+            </div>
+            <div class="field">
+              <label for="eaveLength">Eave Length</label>
+              <div class="with-unit"><input type="number" id="eaveLength" placeholder="0"><span class="unit">LF</span></div>
+            </div>
+            <div class="field">
+              <label for="valleyLength">Valley Length</label>
+              <div class="with-unit"><input type="number" id="valleyLength" placeholder="0"><span class="unit">LF</span></div>
+            </div>
+            <div class="field">
+              <label for="soffitDepth">Predominant Soffit Depth</label>
+              <div class="with-unit"><input type="number" id="soffitDepth" placeholder="8"><span class="unit">inches</span></div>
+            </div>
+            <div class="field">
+              <label for="studSize">Stud Size</label>
+              <select id="studSize"><option>2x4</option><option selected>2x6</option></select>
+            </div>
+            <div class="field">
+              <label for="exteriorType">Exterior Type</label>
+              <select id="exteriorType"><option>Vinyl</option><option>Wood</option><option>Stucco</option><option selected>Brick</option></select>
+            </div>
+            <div class="field full">
+              <label>Calculation Mode</label>
+              <div class="radios">
+                <label><input type="radio" name="calcMode" checked> Eave + Valley</label>
+                <label><input type="radio" name="calcMode"> Eave Only</label>
+              </div>
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="button" class="btn btn-secondary">IWS Diagram</button>
+            <button type="button" class="btn btn-secondary">Clear Form</button>
+            <button type="button" class="btn btn-primary">Calculate</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Calculation Results</h2>
+          <p class="panel-hint">Actual square footage and full-roll figures appear side by side.</p>
+          <div class="results-grid">
+            <div class="result-card">
+              <div class="rc-head"><h3>Actual SF</h3><span class="rc-total">0.0 SF</span></div>
+              <div class="calc-line">Eave Calc: pending</div>
+              <div class="calc-line">Valley Calc: pending</div>
+              <div class="calc-line">Felt Reduction: pending</div>
+            </div>
+            <div class="result-card">
+              <div class="rc-head"><h3>Full Roll</h3><span class="rc-total">0.0 SF</span></div>
+              <div class="calc-line">Eave Calc: pending</div>
+              <div class="calc-line">Valley Calc: pending</div>
+              <div class="calc-line">Felt Reduction: pending</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">Layout preview only. The Calculate button does not compute anything in this mockup.</p>
+      </div>
+    </div>
+  </div>
+  <script src="js/nav.js"></script>
+</body>
+</html>

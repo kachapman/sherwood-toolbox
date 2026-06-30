@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Sherwood Toolbox{% endblock %}
+{% block page_title %}Hub{% endblock %}
+{% block page_subtitle %}Pick a tool to open{% endblock %}
+
+{% block content %}
+<div class="tile-grid">
+  {% for t in tools %}
+  <div class="tile">
+    <div class="tile-icon">{{ t.icon | safe }}</div>
+    <h2>{{ t.label }}</h2>
+    <p>{{ t.description }}</p>
+    <a class="btn btn-primary open-link" href="{{ url_for(t.id ~ '.index') }}">Open</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

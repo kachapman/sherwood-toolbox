@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Documents - Sherwood Toolbox{% endblock %}
+{% block page_title %}Documents{% endblock %}
+{% block page_subtitle %}Invoice and certificate of completion{% endblock %}
+
+{% block content %}
+<form id="docForm">
+  <input type="hidden" name="doc_type" id="doc_type" value="invoice">
+  <input type="hidden" name="line_items_json" id="line_items_json" value="[]">
+
+  <div class="panel">
+    <h2>Fetch from CRM (optional)</h2>
+    <p class="panel-hint">Paste a CRM job URL to auto-fill the customer and claim fields.</p>
+    <div class="inline-row">
+      <div class="field">
+        <label for="crmUrl">CRM job URL</label>
+        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+      </div>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+    </div>
+    <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
+    {% include "_crm_credentials.html" %}
+  </div>
+
+  <div class="panel">
+    <h2>Company and customer</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="company_id">Company</label>
+        <select id="company_id" name="company_id">
+          {% for c in companies %}<option value="{{ c.id }}" data-color="{{ c.primary_color or '' }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="sales_rep">Sales rep</label>
+        <input type="text" id="sales_rep" name="sales_rep" placeholder="Representative name">
+      </div>
+      <div class="field">
+        <label for="customer_name">Customer name</label>
+        <input type="text" id="customer_name" name="customer_name" placeholder="Insured / property owner">
+      </div>
+      <div class="field">
+        <label for="job_number">Job number</label>
+        <input type="text" id="job_number" name="job_number" placeholder="Job number">
+      </div>
+      <div class="field full">
+        <label for="street">Street</label>
+        <input type="text" id="street" name="street" placeholder="Street address">
+      </div>
+      <div class="field">
+        <label for="city_state_zip">City, State, ZIP</label>
+        <input type="text" id="city_state_zip" name="city_state_zip" placeholder="City, ST 00000">
+      </div>
+      <div class="field">
+        <label for="insurance_claim">Insurance claim number</label>
+        <input type="text" id="insurance_claim" name="insurance_claim" placeholder="Claim number">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Invoice details</h2>
+    <p class="panel-hint">Invoice number defaults to the job number. Line items add on top of the base charge.</p>
+    <div class="form-grid">
+      <div class="field">
+        <label for="invoice_number">Invoice number</label>
+        <input type="text" id="invoice_number" name="invoice_number" placeholder="Defaults to job number">
+      </div>
+      <div class="field">
+        <label for="invoice_date">Invoice date</label>
+        <input type="text" id="invoice_date" name="invoice_date" placeholder="Defaults to today">
+      </div>
+      <div class="field">
+        <label for="terms">Terms</label>
+        <input type="text" id="terms" name="terms" placeholder="Due on receipt">
+      </div>
+      <div class="field">
+        <label for="base_description">Base charge description</label>
+        <input type="text" id="base_description" name="base_description" placeholder="Base Charge">
+      </div>
+      <div class="field">
+        <label for="base_amount">Base charge amount</label>
+        <div class="with-unit"><input type="number" id="base_amount" name="base_amount" step="0.01" placeholder="0.00" oninput="recalc()"><span class="unit">USD</span></div>
+      </div>
+    </div>
+
+    <div class="checks" style="margin-top:16px">
+      <label><input type="checkbox" name="include_itel" id="include_itel" onchange="recalc()"> Include ITEL Report line (199.80)</label>
+      <label><input type="checkbox" name="include_nts" id="include_nts" onchange="recalc()"> Include NTS Report line (150.00)</label>
+    </div>
+
+    <table class="lineitems" style="margin-top:16px">
+      <thead><tr><th>Description</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody id="lineBody"></tbody>
+      <tfoot><tr><td>Grand total</td><td class="num" id="grandTotal">0.00</td><td></td></tr></tfoot>
+    </table>
+    <div class="button-row">
+      <button type="button" class="btn btn-secondary" id="addLineBtn">Add line</button>
+    </div>
+
+    <div class="field full" style="margin-top:16px">
+      <label for="invoice_notes">Notes</label>
+      <textarea id="invoice_notes" name="invoice_notes" placeholder="Notes printed on the invoice"></textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Signature</h2>
+    <div class="checks">
+      <label><input type="checkbox" name="include_signature" id="include_signature" checked> Include signature</label>
+      <label><input type="checkbox" name="use_custom_signature" id="use_custom_signature"> Use a custom signature image</label>
+    </div>
+    <div class="inline-row" style="margin-top:14px">
+      <div class="field">
+        <label for="signature_file">Signature image (optional)</label>
+        <input type="file" id="signature_file" name="signature_file" accept="image/*">
+      </div>
+      <div class="field">
+        <label for="signature_name">Signature name</label>
+        <input type="text" id="signature_name" name="signature_name" placeholder="Defaults to sales rep">
+      </div>
+    </div>
+    <div class="button-row" style="margin-top:18px">
+      <button type="button" class="btn btn-primary company-tinted" onclick="generate('both')">Generate Both</button>
+      <button type="button" class="btn btn-primary company-tinted" onclick="generate('invoice')">Generate Invoice PDF</button>
+      <button type="button" class="btn btn-primary company-tinted" onclick="generate('coc')">Generate Certificate of Completion PDF</button>
+      <span class="muted-note" id="genMsg"></span>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const DOCS = {
+    crm: "{{ url_for('documents.crm_fetch') }}",
+    generate: "{{ url_for('documents.generate') }}",
+  };
+  function $(id) { return document.getElementById(id); }
+
+  function lineRows() {
+    return Array.from(document.querySelectorAll('#lineBody tr')).map(tr => ({
+      description: tr.querySelector('.li-desc').value,
+      amount: tr.querySelector('.li-amt').value,
+    }));
+  }
+  function recalc() {
+    let total = parseFloat($('base_amount').value) || 0;
+    if ($('include_itel').checked) total += 199.80;
+    if ($('include_nts').checked) total += 150.00;
+    lineRows().forEach(r => { total += parseFloat(r.amount) || 0; });
+    $('grandTotal').textContent = total.toFixed(2);
+  }
+  function addLine(desc, amt) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input type="text" class="li-desc" placeholder="Line item" value="${desc || ''}"></td>`
+      + `<td class="num"><input type="number" class="li-amt" step="0.01" placeholder="0.00" value="${amt || ''}"></td>`
+      + `<td class="num"><button type="button" class="btn btn-secondary li-del" title="Remove">&times;</button></td>`;
+    $('lineBody').appendChild(tr);
+    tr.querySelector('.li-amt').addEventListener('input', recalc);
+    tr.querySelector('.li-del').addEventListener('click', () => { tr.remove(); recalc(); });
+  }
+  $('addLineBtn').addEventListener('click', () => addLine());
+
+  const crmBtn = $('crmFetchBtn');
+  if (crmBtn) crmBtn.addEventListener('click', async () => {
+    const msg = $('crmMsg'); msg.textContent = 'Looking up...';
+    const fd = new FormData(); fd.append('url', $('crmUrl').value);
+    try {
+      const r = await fetch(DOCS.crm, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
+      const info = data.info || {};
+      if (info.customer_name) $('customer_name').value = info.customer_name;
+      if (info.claim_number) $('insurance_claim').value = info.claim_number;
+      if (info.job_id) $('job_number').value = info.job_id;
+      if (info.sales_rep) $('sales_rep').value = info.sales_rep;
+      // Address split into street and City/State/ZIP by the server.
+      if (info.street) $('street').value = info.street;
+      else if (info.job_location) $('street').value = info.job_location;
+      if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
+      msg.textContent = 'Fields filled from CRM.';
+    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
+  });
+
+  async function generate(docType) {
+    const msg = $('genMsg'); msg.textContent = 'Generating...';
+    $('doc_type').value = docType;
+    $('line_items_json').value = JSON.stringify(lineRows());
+    try {
+      const r = await fetch(DOCS.generate, { method: 'POST', body: new FormData($('docForm')) });
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/pdf') || ct.includes('application/zip')) {
+        const blob = await r.blob();
+        const cd = r.headers.get('content-disposition') || '';
+        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        const ext = ct.includes('zip') ? '.zip' : '.pdf';
+        const name = m ? decodeURIComponent(m[1]) : (docType + ext);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+        msg.textContent = 'Downloaded ' + name;
+      } else {
+        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
+        msg.textContent = data.error || 'Generation failed.';
+      }
+    } catch (e) { msg.textContent = 'Error: ' + e.message; }
+  }
+  window.generate = generate; window.recalc = recalc;
+  recalc();
+</script>
+{% endblock %}

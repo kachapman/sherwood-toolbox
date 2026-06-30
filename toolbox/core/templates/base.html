@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Sherwood Toolbox{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/mark.svg') }}">
+  <link rel="alternate icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/toolbox.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Sherwood logo">
+        <span class="brand-text">Sherwood Toolbox
+          <span class="brand-sub">Estimating tools</span>
+        </span>
+      </div>
+      <ul class="nav">
+        <li><a href="{{ url_for('core.index') }}"
+               class="{{ 'is-active' if request.blueprint == 'core' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Hub</a></li>
+        {% for t in tools %}
+        <li><a href="{{ url_for(t.id ~ '.index') }}"
+               class="{{ 'is-active' if request.blueprint == t.id }}">
+          {{ t.icon | safe }} {{ t.label }}</a></li>
+        {% endfor %}
+      </ul>
+      <div class="sidebar-foot">Local app. Runs offline.</div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <h1>{% block page_title %}{% endblock %}
+          <span class="subtitle">{% block page_subtitle %}{% endblock %}</span>
+        </h1>
+        <span class="badge">{% block badge %}Local{% endblock %}</span>
+      </div>
+
+      <div class="content">
+        {% if caps.offline or not caps.network %}
+        <div class="notice-bar offline">Offline mode. Features that need the internet, such as CRM lookup, are unavailable; everything else works.</div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/company_theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/crm_credentials.js') }}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estimate Enhancer - Sherwood Toolbox</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/logo.png" alt="Sherwood logo">
+        <span class="brand-text">Sherwood Toolbox
+          <span class="brand-sub">Estimating tools</span>
+        </span>
+      </div>
+      <ul class="nav">
+        <li><a href="index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Hub</a></li>
+        <li><a href="estimate-enhancer.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 13h6M8 17h4"/></svg>
+          Estimate Enhancer</a></li>
+        <li><a href="iws.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-7 9 7"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/></svg>
+          Ice and Water Shield Calculator</a></li>
+        <li><a href="photo-report.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+          Photo Report</a></li>
+        <li><a href="document-generator.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h6"/></svg>
+          Documents</a></li>
+      </ul>
+      <div class="sidebar-foot">Layout mockup, no backend wired.</div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <h1>Estimate Enhancer
+          <span class="subtitle">Clean up and link a construction estimate PDF</span>
+        </h1>
+        <span class="badge">Static mockup</span>
+      </div>
+
+      <div class="content">
+        <div class="panel">
+          <h2>Step 1. Upload estimate</h2>
+          <p class="panel-hint">Drop the estimate PDF here or pick a file. Maximum 50 MB.</p>
+          <div class="dropzone">
+            <strong>Drop PDF to upload</strong>
+            <span>or</span>
+            <div style="margin-top:10px"><input type="file" accept="application/pdf"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Step 2. Enhancement options</h2>
+          <p class="panel-hint">Choose what the enhancer should apply.</p>
+          <div class="checks">
+            <label><input type="checkbox" checked> Run spell-check with the construction vocabulary</label>
+            <label><input type="checkbox" checked> Flag zero-quantity line items</label>
+            <label><input type="checkbox" checked> Create clickable image links between references and photo pages</label>
+            <label><input type="checkbox"> Attach matching IRC code reference documents</label>
+          </div>
+          <div class="field full" style="margin-top:16px">
+            <label for="terms">Highlight terms</label>
+            <input type="text" id="terms" placeholder="Comma-separated terms or &quot;quoted phrases&quot;">
+          </div>
+          <div class="button-row">
+            <button type="button" class="btn btn-secondary">Analyze</button>
+            <button type="button" class="btn btn-primary">Enhance</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Step 3. Result</h2>
+          <p class="panel-hint">The enhanced PDF and a preview of highlighted pages appear here.</p>
+          <div class="result-slot">
+            <span>No file processed yet.</span>
+            <button type="button" class="btn btn-primary is-disabled" disabled>Download enhanced PDF</button>
+          </div>
+        </div>
+
+        <p class="note">Layout preview only. Inputs are inert; no PDF is uploaded or processed.</p>
+      </div>
+    </div>
+  </div>
+  <script src="js/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+/* Estimate Enhancer specific components, styled with the shared toolbox tokens.
+   Loaded only on this tool's page, after toolbox.css. Chrome, panels, buttons,
+   and form controls come from toolbox.css; this file covers the 4-step flow
+   rail and the analysis-specific widgets. Element IDs and class names match
+   what the page's inline script expects. */
+
+.w-100 { width: 100%; }
+.small { font-size: 0.85rem; }
+[hidden] { display: none !important; }
+
+/* Step flow rail */
+.flow { max-width: 940px; }
+.step { display: grid; grid-template-columns: 56px minmax(0, 1fr); }
+.step-rail { position: relative; display: flex; justify-content: center; }
+.step-rail::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px; margin-left: -0.5px;
+  background: var(--line);
+}
+.step:first-child .step-rail::before { top: 8px; }
+.step:last-child .step-rail::before { bottom: auto; height: 8px; }
+.step-node {
+  position: relative; z-index: 1;
+  width: 34px; height: 34px; margin-top: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--sage-100);
+  color: var(--muted);
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.step[data-state="active"] .step-node { border-color: var(--green-800); background: #fff; color: var(--green-800); }
+.step[data-state="done"] .step-node { border-color: var(--green-800); background: var(--green-800); color: #fff; }
+.step-body { padding: 0 0 30px 8px; min-width: 0; }
+.step-title { font-size: 1.12rem; font-weight: 700; color: var(--green-900); margin: 10px 0 4px; }
+.step-hint { color: var(--muted); font-size: 0.88rem; margin: 0 0 14px; }
+.step[data-state="pending"] .step-title,
+.step[data-state="pending"] .step-hint { opacity: 0.55; }
+
+/* Panels / labels */
+.panel-label {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.muted-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; }
+.btn-quiet { font-size: 0.78rem; padding: 4px 10px; font-weight: 600; }
+
+.upload-area { text-align: center; padding: 24px 20px; }
+.upload-area h6 { font-size: 1rem; font-weight: 600; margin: 0 0 16px; color: var(--ink); }
+.upload-area input[type="file"] { margin-bottom: 14px; }
+
+/* Issues list */
+#errorsSection { max-height: 420px; overflow-y: auto; font-size: 0.9em; }
+.error-item {
+  background: #fdecef; border-left: 4px solid #c0392b;
+  padding: 9px 14px; margin-bottom: 8px; border-radius: 7px;
+}
+.bg-info { background: var(--green-700); color: #fff; }
+.bg-success { background: var(--green-800); color: #fff; }
+.text-muted { color: var(--muted); }
+.text-success { color: #2e6b34; }
+.text-dark { color: var(--ink); }
+
+/* Highlight term fields */
+.highlight-field {
+  display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 8px;
+  background: var(--sage-50); padding: 9px; border-radius: 8px;
+  margin-bottom: 8px; border: 1px solid var(--line);
+}
+.highlight-field textarea { background: #fff; min-height: 38px; }
+select[name$="_color"] { font-weight: 600; transition: background-color 0.2s ease; }
+select[data-color="#FAFFA0"] { background-color: #FAFFA0; color: #333; }
+select[data-color="#FFBCA6"] { background-color: #FFBCA6; color: #333; }
+select[data-color="#66bb6a"] { background-color: #66bb6a; color: #fff; }
+select[data-color="#42a5f5"] { background-color: #42a5f5; color: #fff; }
+select[data-color="#ab47bc"] { background-color: #ab47bc; color: #fff; }
+select[data-color="#ff8a65"] { background-color: #ff8a65; color: #333; }
+
+.check-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 9px; }
+.check-row input[type="checkbox"] { width: 16px; height: 16px; margin-top: 3px; flex: none; accent-color: var(--green-800); }
+.check-row label { cursor: pointer; font-size: 0.9rem; }
+.doc-checkbox { background: var(--sage-50); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; font-size: 0.88rem; }
+
+.enhance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.enhance-grid .panel { margin-bottom: 0; }
+@media (max-width: 860px) { .enhance-grid { grid-template-columns: 1fr; } }
+
+/* Deliver */
+.loading { text-align: center; padding: 28px; }
+.spinner-border {
+  display: inline-block; width: 2rem; height: 2rem;
+  border: 3px solid var(--line); border-top-color: var(--green-800);
+  border-radius: 50%; animation: ee-spin 0.8s linear infinite;
+}
+@keyframes ee-spin { to { transform: rotate(360deg); } }
+.download-section { border-left: 4px solid var(--green-800); }
+.download-section h6 { font-size: 1.05rem; margin: 0 0 8px; color: var(--green-800); }
+.alert-warning {
+  background: #f6efd9; border: 1px solid #d8d1bf; border-radius: 7px;
+  color: #6d5a1d; font-size: 0.85rem; padding: 8px 12px; margin-bottom: 10px;
+}
+#previewFrame {
+  width: 100%; height: 680px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--sage-50); display: block;
+}

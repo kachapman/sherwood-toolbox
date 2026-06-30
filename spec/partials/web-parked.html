@@ -1,0 +1,23 @@
+<div class="panel spec parked">
+  <h2>Web server deployment (parked)</h2>
+  <p class="panel-hint">Benched, not deleted. Preserved here so it can be revived without re-deriving it.</p>
+
+  <h3>Shape</h3>
+  <p>The same modular-monolith Flask app, deployed as a single container instead of a local launcher. One image runs the app under a production WSGI server (gunicorn); a reverse proxy sits in front only for TLS and the domain.</p>
+
+  <pre>deploy/
+  Dockerfile          single image: gunicorn toolbox.wsgi:app
+  docker-compose.yml  app + reverse proxy (TLS/domain only)
+  proxy/              nginx or Traefik config</pre>
+
+  <h3>Key points to remember when reviving</h3>
+  <ul>
+    <li>Run <code>gunicorn toolbox.wsgi:app</code> (the same <code>create_app()</code>, with <code>OFFLINE</code> unset so network features are live).</li>
+    <li>One volume for <code>~/.config/restoration_toolkit</code> (companies, signatures) and one for Estimate Enhancer uploads/attachments.</li>
+    <li>The proxy terminates TLS and serves the domain; the app itself stays HTTP on an internal port.</li>
+    <li>Because the app is one process serving all tools at path prefixes (<code>/estimate-enhancer</code>, <code>/iws</code>, <code>/photo-report</code>, <code>/documents</code>), no per-tool routing config is needed; the earlier multi-container proxy-hub is unnecessary.</li>
+  </ul>
+
+  <h3>Why parked</h3>
+  <p>The local version covers the immediate need and works offline. The web deployment is recorded for when multi-user or remote access is wanted.</p>
+</div>

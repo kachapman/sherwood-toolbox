@@ -1,0 +1,25 @@
+<div class="panel spec">
+  <h2>Run locally</h2>
+
+  <h3>Install (one time, needs network)</h3>
+  <pre>cd ~/Documents/projects/SherwoodToolbox
+./run/install-standalone.sh</pre>
+  <p>The script creates a venv, runs <code>pip install .</code> (toolbox + <code>restoration-common</code>; PyQt5 is not pulled in because only the headless core is imported), installs <code>sherwood-toolbox.desktop</code> into <code>~/.local/share/applications/</code>, appends a <code>sherwood-toolbox</code> alias to <code>~/.zshrc</code>, and records the alias in <code>opencodeAssets/aliasDirectory.txt</code>.</p>
+
+  <h3>Launch (offline after install)</h3>
+  <ul>
+    <li>GNOME: open "Sherwood Toolbox" from the app grid.</li>
+    <li>Terminal: <code>sherwood-toolbox</code>.</li>
+  </ul>
+  <p>The launcher runs <code>run/standalone.py</code>: <code>create_app(offline=True)</code>, waitress on a free <code>127.0.0.1</code> port, then opens the default browser. Serving over <code>http://127.0.0.1</code> avoids the Flatpak <code>file://</code> sandbox that blocks sibling files, so multi-page navigation and uploads work normally.</p>
+
+  <h3>Offline behavior</h3>
+  <p><code>core/capabilities.py</code> checks network reachability, CRM credentials (<code>~/.config/photo_report_generator/crm.ini</code>), and the fork script. Templates read those flags and disable or annotate features rather than erroring. "Fetch from CRM" returns a clear "offline or not configured" message; every other feature works with no network. The launcher sets <code>OFFLINE=1</code> to skip network probes entirely.</p>
+
+  <h3>Data locations</h3>
+  <ul>
+    <li>Companies and signatures: <code>~/.config/restoration_toolkit/</code>.</li>
+    <li>CRM credentials: <code>~/.config/photo_report_generator/crm.ini</code>.</li>
+    <li>Shipped default companies and logos: inside the <code>restoration_common</code> package.</li>
+  </ul>
+</div>

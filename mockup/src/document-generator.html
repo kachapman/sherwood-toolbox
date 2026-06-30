@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documents - Sherwood Toolbox</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/logo.png" alt="Sherwood logo">
+        <span class="brand-text">Sherwood Toolbox
+          <span class="brand-sub">Estimating tools</span>
+        </span>
+      </div>
+      <ul class="nav">
+        <li><a href="index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Hub</a></li>
+        <li><a href="estimate-enhancer.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 13h6M8 17h4"/></svg>
+          Estimate Enhancer</a></li>
+        <li><a href="iws.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-7 9 7"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/></svg>
+          Ice and Water Shield Calculator</a></li>
+        <li><a href="photo-report.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+          Photo Report</a></li>
+        <li><a href="document-generator.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h6"/></svg>
+          Documents</a></li>
+      </ul>
+      <div class="sidebar-foot">Layout mockup, no backend wired.</div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <h1>Documents
+          <span class="subtitle">Invoice and certificate of completion, planned web port</span>
+        </h1>
+        <span class="badge">Static mockup</span>
+      </div>
+
+      <div class="content">
+        <div class="panel">
+          <h2>Fetch from CRM (optional)</h2>
+          <p class="panel-hint">Paste a CRM job URL to auto-fill the customer and claim fields.</p>
+          <div class="inline-row">
+            <div class="field">
+              <label for="crmUrl">CRM job URL</label>
+              <input type="url" id="crmUrl" placeholder="https://office.vanguardadj.com/...">
+            </div>
+            <button type="button" class="btn btn-secondary">Fetch</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Company and customer</h2>
+          <p class="panel-hint">Same inputs as the desktop Document Generator.</p>
+          <div class="form-grid">
+            <div class="field">
+              <label for="company">Company</label>
+              <select id="company"><option>Select company</option></select>
+            </div>
+            <div class="field">
+              <label for="salesRep">Sales rep</label>
+              <input type="text" id="salesRep" placeholder="Representative name">
+            </div>
+            <div class="field">
+              <label for="customer">Customer name</label>
+              <input type="text" id="customer" placeholder="Insured / property owner">
+            </div>
+            <div class="field">
+              <label for="jobNo">Job number</label>
+              <input type="text" id="jobNo" placeholder="Job number">
+            </div>
+            <div class="field full">
+              <label for="street">Street</label>
+              <input type="text" id="street" placeholder="Street address">
+            </div>
+            <div class="field">
+              <label for="cityStateZip">City, State, ZIP</label>
+              <input type="text" id="cityStateZip" placeholder="City, ST 00000">
+            </div>
+            <div class="field">
+              <label for="claim">Insurance claim number</label>
+              <input type="text" id="claim" placeholder="Claim number">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Invoice details</h2>
+          <p class="panel-hint">Auto-numbered from the job number. Add line items below.</p>
+          <div class="form-grid">
+            <div class="field">
+              <label for="invoiceNo">Invoice number</label>
+              <input type="text" id="invoiceNo" placeholder="Auto from job number">
+            </div>
+            <div class="field">
+              <label for="invoiceDate">Invoice date</label>
+              <input type="date" id="invoiceDate">
+            </div>
+            <div class="field">
+              <label for="terms">Terms</label>
+              <input type="text" id="terms" placeholder="Due on receipt">
+            </div>
+          </div>
+
+          <div class="checks" style="margin-top:16px">
+            <label><input type="checkbox"> Include ITEL Report line (199.80)</label>
+            <label><input type="checkbox"> Include NTS Report line (150.00)</label>
+          </div>
+
+          <table class="lineitems" style="margin-top:16px">
+            <thead>
+              <tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="text" placeholder="Base charge"></td>
+                <td class="num"><input type="number" placeholder="1"></td>
+                <td class="num"><input type="number" placeholder="0.00"></td>
+                <td class="num">0.00</td>
+              </tr>
+              <tr>
+                <td><input type="text" placeholder="Line item"></td>
+                <td class="num"><input type="number" placeholder="1"></td>
+                <td class="num"><input type="number" placeholder="0.00"></td>
+                <td class="num">0.00</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr><td colspan="3">Grand total</td><td class="num">0.00</td></tr>
+            </tfoot>
+          </table>
+          <div class="button-row">
+            <button type="button" class="btn btn-secondary">Add line</button>
+            <button type="button" class="btn btn-secondary">Import from CSV</button>
+          </div>
+
+          <div class="field full" style="margin-top:16px">
+            <label for="notes">Notes</label>
+            <textarea id="notes" placeholder="Notes printed on the invoice"></textarea>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Signature</h2>
+          <p class="panel-hint">Use the saved company signature or upload a custom image.</p>
+          <div class="checks">
+            <label><input type="checkbox" checked> Include signature</label>
+            <label><input type="checkbox"> Use a custom signature image</label>
+          </div>
+          <div class="inline-row" style="margin-top:14px">
+            <div class="field">
+              <label for="sigFile">Signature image</label>
+              <input type="file" id="sigFile" accept="image/*">
+            </div>
+          </div>
+          <div class="signature-preview" style="margin-top:12px">Signature preview</div>
+          <div class="button-row">
+            <button type="button" class="btn btn-primary">Generate Invoice PDF</button>
+            <button type="button" class="btn btn-primary">Generate Certificate of Completion PDF</button>
+          </div>
+        </div>
+
+        <p class="note">Layout preview only. This page sketches the planned web form; the working tool is still the desktop PyQt5 app.</p>
+      </div>
+    </div>
+  </div>
+  <script src="js/nav.js"></script>
+</body>
+</html>

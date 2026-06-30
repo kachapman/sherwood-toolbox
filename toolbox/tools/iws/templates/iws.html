@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Ice and Water Shield Calculator - Sherwood Toolbox{% endblock %}
+{% block page_title %}Ice and Water Shield Calculator{% endblock %}
+{% block page_subtitle %}Coverage from roof measurements{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('iws.static', filename='css/iws.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <h2>Project and roof inputs</h2>
+  <div class="form-grid">
+    <div class="field full">
+      <label for="projectName">Project Name</label>
+      <input type="text" id="projectName" placeholder="Insured / property owner name">
+    </div>
+    <div class="field full">
+      <label for="projectAddress">Address</label>
+      <input type="text" id="projectAddress" placeholder="123 Sherwood Rd. Nottinghamshire">
+    </div>
+    <div class="field">
+      <label for="roofSize">Roof Size</label>
+      <div class="with-unit"><input type="number" id="roofSize" step="0.01" placeholder="0.00"><span class="unit">SQ</span></div>
+    </div>
+    <div class="field">
+      <label for="insideWall">Inside Exterior Wall</label>
+      <div class="with-unit"><input type="number" id="insideWall" step="1" placeholder="24"><span class="unit">inches</span></div>
+    </div>
+    <div class="field">
+      <label for="roofPitch">Predominant Pitch</label>
+      <div class="with-unit"><input type="number" id="roofPitch" step="1" placeholder="6"><span class="unit">/12</span></div>
+    </div>
+    <div class="field">
+      <label for="eaveLength">Eave Length</label>
+      <div class="with-unit"><input type="number" id="eaveLength" step="1" placeholder="0"><span class="unit">LF</span></div>
+    </div>
+    <div class="field">
+      <label for="valleyLength">Valley Length</label>
+      <div class="with-unit"><input type="number" id="valleyLength" step="1" placeholder="0"><span class="unit">LF</span></div>
+    </div>
+    <div class="field">
+      <label for="soffitDepth">Predominant Soffit Depth</label>
+      <div class="with-unit"><input type="number" id="soffitDepth" step="1" placeholder="8"><span class="unit">inches</span></div>
+    </div>
+    <div class="field">
+      <label for="studSize">Stud Size</label>
+      <select id="studSize"><option value="2x4">2x4</option><option value="2x6" selected>2x6</option></select>
+    </div>
+    <div class="field">
+      <label for="exteriorType">Exterior Type</label>
+      <select id="exteriorType">
+        <option value="vinyl">Vinyl</option>
+        <option value="wood">Wood</option>
+        <option value="stucco">Stucco</option>
+        <option value="brick" selected>Brick</option>
+      </select>
+    </div>
+    <div class="field full">
+      <label>Calculation Mode</label>
+      <div class="radios">
+        <label><input type="radio" name="calcMode" value="eaveValley" checked> Eave + Valley</label>
+        <label><input type="radio" name="calcMode" value="eaveOnly"> Eave Only</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="button-row">
+    <button type="button" id="roofPlanBtn" class="btn btn-secondary" disabled aria-expanded="false">IWS Diagram</button>
+    <button type="button" id="clearBtn" class="btn btn-secondary">Clear Form</button>
+    <button type="button" id="calculateBtn" class="btn btn-primary">Calculate</button>
+  </div>
+
+  <div id="roofPlanPanel" class="roof-plan-panel hidden">
+    <div class="panel-header">
+      <h3>IWS Diagram</h3>
+      <button type="button" class="panel-close" id="closeRoofPlan" title="Close">&times;</button>
+    </div>
+    <div class="diagram-container">
+      <img src="{{ url_for('iws.static', filename='img/iws_diagram.png') }}" alt="Ice and Water Shield Diagram" class="diagram-img" id="diagramImg">
+      <span class="diagram-label" id="labelCoverage"></span>
+      <span class="diagram-label" id="labelRise"></span>
+      <span class="diagram-label" id="labelPitch"></span>
+      <span class="diagram-label" id="labelInsideWall"></span>
+      <span class="diagram-label" id="labelSoffit"></span>
+      <span class="diagram-label" id="labelWallThickness"></span>
+    </div>
+    <div class="panel-footer">
+      <button type="button" id="saveDiagramBtn" class="btn btn-save">Save Diagram as JPEG</button>
+    </div>
+  </div>
+</div>
+
+<section id="resultsSection" class="results-section hidden">
+  <h2 class="section-title">Calculation Results</h2>
+  <div class="results-grid">
+    <div class="result-card" id="actualCard">
+      <div class="result-header">
+        <h3>Actual SF</h3>
+        <span class="result-total" id="actualTotal">0.0 SF</span>
+      </div>
+      <div class="result-body">
+        <p class="support-text" id="actualSupport"></p>
+        <div class="calc-line"><strong>Eave Calc:</strong> <span id="actualEaveCalc"></span></div>
+        <div class="calc-line" id="actualValleyLine"><strong>Valley Calc:</strong> <span id="actualValleyCalc"></span></div>
+        <div class="calc-line"><strong>Felt Reduction:</strong> <span id="actualFeltReduction"></span></div>
+        <button type="button" class="btn btn-copy" data-copy-target="actualCard">Copy Note</button>
+      </div>
+    </div>
+
+    <div class="result-card" id="fullRollCard">
+      <div class="result-header">
+        <h3>Full Roll</h3>
+        <span class="result-total" id="fullRollTotal">0.0 SF</span>
+      </div>
+      <div class="result-body">
+        <p class="support-text" id="fullRollSupport"></p>
+        <div class="calc-line"><strong>Eave Calc:</strong> <span id="fullRollEaveCalc"></span></div>
+        <div class="calc-line" id="fullRollValleyLine"><strong>Valley Calc:</strong> <span id="fullRollValleyCalc"></span></div>
+        <div class="calc-line"><strong>Felt Reduction:</strong> <span id="fullRollFeltReduction"></span></div>
+        <button type="button" class="btn btn-copy" data-copy-target="fullRollCard">Copy Note</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="historySection" class="history-section hidden">
+  <h2 class="section-title">Recent Calculations</h2>
+  <div id="historyList" class="history-list"></div>
+</section>
+
+<p class="note">Sherwood Estimates &copy; <span id="year"></span>. Runs entirely in your browser.</p>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{{ url_for('iws.static', filename='js/calculator.js') }}"></script>
+{% endblock %}
