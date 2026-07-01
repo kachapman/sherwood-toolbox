@@ -138,8 +138,11 @@ Versions are stored in:
 To release:
 1. Update both version strings.
 2. Commit and tag: `git tag vX.Y.Z`.
-3. Run `./run/build-deb.sh`.
+3. Run `./run/build-deb.sh` (for .deb) and/or `./run/build-appimage.sh` (for portable AppImage).
 4. Push commits and tags.
+
+Pushing a `vX.Y.Z` tag triggers `.github/workflows/build-appimage.yml`, which builds
+the AppImage on GitHub (Ubuntu 22.04 runner) and attaches it to the GitHub Release.
 
 ## Testing checklist for agents
 

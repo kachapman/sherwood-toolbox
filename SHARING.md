@@ -45,23 +45,46 @@ The desktop launcher runs inside a native pywebview window on port `8766`
 **Code Docs** and **Archive** buttons that open the attachments and uploads
 folders.
 
-## Option B: AppImage (recommended for Fedora, Arch, and other non-.deb distros)
+## Option B: AppImage (recommended for Fedora, Arch, Zorin, and other non-.deb distros)
+
+### 0. Get the source on the target machine
+
+```bash
+# SSH (if you have a key)
+git clone git@github.com:kachapman/sherwood-toolbox.git
+cd sherwood-toolbox
+
+# or HTTPS (use a Personal Access Token for password)
+git clone https://github.com/kachapman/sherwood-toolbox.git
+cd sherwood-toolbox
+```
+
+**Important:** Build and run the AppImage on the machine where you will use it
+(Zorin, Fedora 43, etc.) so the bundled Python can use the system's WebKitGTK +
+PyGObject bindings.
+
+You can either:
+
+- Download a prebuilt `Sherwood_Toolbox-*.AppImage` from the
+  [Releases page](https://github.com/kachapman/sherwood-toolbox/releases), or
+- Build it yourself (see below).
 
 ### 1. Build the AppImage
 
 ```bash
 cd /path/to/sherwood-toolbox
+chmod +x run/build-appimage.sh
 ./run/build-appimage.sh
 ```
 
 This produces `Sherwood_Toolbox-<version>-x86_64.AppImage` in the project root.
 
-**Build-time requirements** (especially on Fedora 43 + AMD):
+**Build-time requirements** (especially on Fedora 43 + AMD or Zorin):
 ```bash
 # Fedora 43 / recent Fedora
 sudo dnf install python3-gobject webkit2gtk4.1 fuse
 
-# Debian/Ubuntu builders
+# Zorin / Debian / Ubuntu builders
 sudo apt install python3-gi python3-gi-cairo gir1.2-webkit2-4.1 fuse
 ```
 
@@ -73,6 +96,9 @@ system WebKitGTK + PyGObject bindings because it uses the native GTK backend:
 ```bash
 # Fedora 43 (AMD Ryzen iGPUs are common here)
 sudo dnf install webkit2gtk4.1 python3-gobject
+
+# Zorin / Ubuntu-based
+sudo apt install gir1.2-webkit2-4.1 python3-gi python3-gi-cairo
 ```
 
 ### 3. Run it
@@ -97,8 +123,8 @@ LIBGL_ALWAYS_SOFTWARE=1 ./Sherwood_Toolbox-*.AppImage
 
 ### 4. Updates
 
-Rebuild the AppImage on the source machine and copy the new `.AppImage` over.
-No install step is required on the target.
+Rebuild the AppImage on the source machine (or download a newer prebuilt) and
+copy the new `.AppImage` over. No install step is required on the target.
 
 ## Option C: Portable tarball
 

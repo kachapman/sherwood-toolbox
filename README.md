@@ -35,6 +35,18 @@ All processing happens locally on your machine. Uploaded files stay on your syst
 
 ## Installation
 
+### Get the source
+
+```bash
+# SSH (recommended if you have a key set up)
+git clone git@github.com:kachapman/sherwood-toolbox.git
+cd sherwood-toolbox
+
+# or HTTPS (use a Personal Access Token when prompted for password)
+git clone https://github.com/kachapman/sherwood-toolbox.git
+cd sherwood-toolbox
+```
+
 ### .deb package (Debian, Ubuntu, Zorin, Pop!_OS, Linux Mint, etc.)
 
 ```bash
@@ -44,21 +56,38 @@ sudo apt-get install -f   # if dependencies are missing
 
 Launch **Sherwood Toolbox** from your application menu.
 
-### AppImage (Fedora, Arch, and other distros)
+### AppImage (Fedora, Arch, Zorin, and other distros)
 
-Download `Sherwood_Toolbox-*.AppImage`, make it executable and run:
+You can either:
+
+**A. Download a prebuilt AppImage** from the [Releases page](https://github.com/kachapman/sherwood-toolbox/releases).
+
+**B. Build it yourself on the machine where you will run it** (Zorin, Fedora 43, etc.):
+
+```bash
+cd /path/to/sherwood-toolbox
+chmod +x run/build-appimage.sh
+./run/build-appimage.sh
+```
+
+After building (or downloading), run:
 
 ```bash
 chmod +x Sherwood_Toolbox-*.AppImage
 ./Sherwood_Toolbox-*.AppImage
 ```
 
-On Fedora 43 (especially with AMD Ryzen graphics) you also need:
+**Runtime requirement on the target machine** (Zorin or Fedora):
+
 ```bash
+# Fedora 43 (common on AMD Ryzen hardware)
 sudo dnf install webkit2gtk4.1 python3-gobject
+
+# Zorin / Ubuntu-based
+sudo apt install gir1.2-webkit2-4.1 python3-gi python3-gi-cairo
 ```
 
-The AppImage includes the native pywebview desktop shell and Fedora/AMD workarounds.
+The AppImage includes the native pywebview desktop shell and workarounds for AMD + recent Fedora/WebKitGTK issues (black/blank windows, dmabuf, etc.). Build on the target machine for best compatibility, or use a prebuilt from Releases.
 
 ### Portable tarball (works on most Linux distributions)
 
