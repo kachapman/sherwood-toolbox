@@ -1,39 +1,50 @@
 # Sherwood Toolbox
 
-A local, offline-first desktop application that bundles several construction-estimating tools under one simple hub. It runs as a native desktop window on Linux (via pywebview) or in a browser for development.
+A local, offline-first desktop application that bundles several construction-estimating tools under one simple hub.
 
-Originally created by **Meat Claud & his Clanker**. This fork is maintained by the current owner, who is continuing to improve and package the application.
+**Original author:** Meat Claud & his Clanker  
+**Current maintenance:** This repository is being taken over and actively improved by the current owner.
 
-## What it does
+## What is Sherwood Toolbox?
 
-Sherwood Toolbox is a modular Flask application that helps with common estimating workflows:
+Sherwood Toolbox is a modular Flask application that provides a collection of practical tools for property restoration and insurance estimating work. It runs as a native desktop application on Linux (using pywebview) or can be launched in a browser during development.
 
-- **Estimate Enhancer** — Upload an Xactimate PDF, detect zero-quantity line items and duplicate photo names, add intra-document image links, highlight custom terms, and append IRC reference documents.
-- **Ice & Water Shield Calculator** — Client-side coverage math for ice-and-water-shield installations.
-- **Photo Report** — Build a branded photo-report PDF from a job's images, with company logo and header/footer.
-- **Documents** — Generate invoices and certificates of completion, with CRM auto-fill, line items, signatures, and company branding.
+All processing happens locally on your machine. Uploaded files stay on your system.
 
-All processing happens locally. Uploaded files are written to a per-user data directory and cleaned up after use. No data leaves the machine unless you explicitly use the optional CRM fetch feature.
+### Included Tools
+
+- **Estimate Enhancer**  
+  Upload Xactimate PDFs, automatically detect zero-quantity line items and duplicate photo names, add clickable image links, highlight custom terms, and attach IRC reference documents.
+
+- **Ice & Water Shield Calculator**  
+  Fast client-side calculator for determining ice-and-water-shield coverage.
+
+- **Photo Report**  
+  Generate professional, company-branded photo report PDFs from a job’s images.
+
+- **Documents**  
+  Create invoices and certificates of completion, with CRM auto-fill, line items, signatures, and company branding.
+
+## Features
+
+- Native desktop window (pywebview) with proper Save As dialogs
+- Optional CRM integration (auto-fills customer, claim, address, and Job/ID)
+- Company color theming — panels and buttons get a faint brand tint based on the selected contractor
+- Sidebar shortcuts: **Code Docs** and **Archive** folder buttons
+- Fully offline after the initial one-time install
 
 ## Installation
 
-### Recommended: `.deb` package (Debian / Ubuntu / Zorin)
+### .deb package (Debian, Ubuntu, Zorin, Pop!_OS, Linux Mint, etc.)
 
 ```bash
 sudo dpkg -i sherwood-toolbox_0.2.0_amd64.deb
+sudo apt-get install -f   # if dependencies are missing
 ```
 
-If dependency errors appear, run:
+Launch **Sherwood Toolbox** from your application menu.
 
-```bash
-sudo apt-get install -f
-```
-
-Then launch from the app grid or run `sherwood-toolbox` in a terminal.
-
-### Portable tarball
-
-For distributions without `dpkg`, or for a browser-based launch:
+### Portable tarball (works on most Linux distributions)
 
 ```bash
 tar -xzf sherwood-toolbox.tar.gz
@@ -42,7 +53,7 @@ cd sherwood-toolbox
 sherwood-toolbox
 ```
 
-See `SHARING.md` for detailed distribution instructions.
+See [SHARING.md](SHARING.md) for detailed distribution instructions.
 
 ## Development
 
@@ -56,25 +67,30 @@ python3 run/standalone.py
 
 Then open the URL printed in the terminal.
 
-## Project structure
+## Project Structure
 
-- `toolbox/` — Flask app, blueprints, shared templates, and static assets.
-- `toolbox/tools/<tool>/` — One tool per package (Estimate Enhancer, IWS, Photo Report, Documents).
-- `vendor/restoration-common/` — Vendored headless PDF generators and CRM helpers.
-- `run/` — Launchers and packaging scripts.
-- `debian/` — Debian package metadata.
-- `STRUCTURE.md` — Full path-by-path reference.
-- `AGENTS.md` — Guidance for coding agents working on the project.
-- `CHANGELOG.md` — Release history.
+- `toolbox/` — Core Flask application and shared assets
+- `toolbox/tools/` — Individual tools (estimate_enhancer, iws, photo_report, documents)
+- `vendor/restoration-common/` — Vendored PDF generators and CRM helpers
+- `run/` — Launchers and packaging scripts
+- `debian/` — Debian package metadata
+- `STRUCTURE.md` — Detailed project layout
+- `AGENTS.md` — Guidance for coding agents
+- `CHANGELOG.md` — Release history
 
-## CRM integration
+## CRM Integration
 
-Photo Report and Documents can auto-fill customer and job fields from the CRM.
-The CRM base URL defaults to `https://office.publicadjustermidwest.com` and can
-be overridden with the `TOOLBOX_CRM_BASE_URL` environment variable. The scraper
-first looks for a custom field labeled **CRM Job/ID**; if that field is empty or
-missing, it falls back to searching the page text for a state-ZIP pattern.
+Photo Report and Documents can optionally fetch data from a CRM.
+
+- Default CRM base URL: `https://office.publicadjustermidwest.com`
+- Override with the `TOOLBOX_CRM_BASE_URL` environment variable
+- The scraper first looks for a custom field labeled **"CRM Job/ID"**. If that field is empty or missing, it falls back to searching the page text for a state-ZIP pattern.
+
+## Author & Credits
+
+- **Original creator**: Meat Claud & his Clanker
+- This fork is being maintained and extended by the current owner.
 
 ## License
 
-See `LICENSE` (to be added).
+To be determined.
