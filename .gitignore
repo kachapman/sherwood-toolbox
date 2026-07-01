@@ -10,4 +10,6 @@ build/
 # Portable bundle artifacts (contain personal data; built, not committed)
 sherwood-toolbox.tar.gz
 *.deb
+*.AppImage
+AppDir/
 config/
