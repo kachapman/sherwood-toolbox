@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="Sherwood Toolbox">
+  <rect x="60" y="180" width="380" height="200" rx="20" fill="#3a6b3f" stroke="#1e3620" stroke-width="4"/>
+  <rect x="60" y="150" width="380" height="85" rx="18" fill="#4a8550" stroke="#1e3620" stroke-width="4"/>
+  <rect x="170" y="85" width="160" height="35" rx="12" fill="#2a4f2e" stroke="#1e3620" stroke-width="3"/>
+  <circle cx="170" cy="102" r="20" fill="#2a4f2e"/>
+  <circle cx="330" cy="102" r="20" fill="#2a4f2e"/>
+  <rect x="225" y="140" width="50" height="70" rx="8" fill="#f0f2eb" stroke="#1e3620" stroke-width="3"/>
+  <line x1="235" y1="175" x2="265" y2="175" stroke="#1e3620" stroke-width="3" stroke-linecap="round"/>
+</svg>

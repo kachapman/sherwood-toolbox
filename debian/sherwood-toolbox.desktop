@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Sherwood Toolbox
+Comment=Local estimating tools, runs offline
+Exec=/usr/bin/sherwood-toolbox
+Icon=/usr/share/pixmaps/sherwood-toolbox.png
+Terminal=false
+Categories=Office;Utility;
+StartupNotify=true

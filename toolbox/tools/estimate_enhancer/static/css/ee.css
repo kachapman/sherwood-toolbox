@@ -66,18 +66,40 @@
 
 /* Highlight term fields */
 .highlight-field {
-  display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 8px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 150px 32px; gap: 8px;
   background: var(--sage-50); padding: 9px; border-radius: 8px;
   margin-bottom: 8px; border: 1px solid var(--line);
+  align-items: center;
 }
 .highlight-field textarea { background: #fff; min-height: 38px; }
-select[name$="_color"] { font-weight: 600; transition: background-color 0.2s ease; }
-select[data-color="#FAFFA0"] { background-color: #FAFFA0; color: #333; }
-select[data-color="#FFBCA6"] { background-color: #FFBCA6; color: #333; }
-select[data-color="#66bb6a"] { background-color: #66bb6a; color: #fff; }
-select[data-color="#42a5f5"] { background-color: #42a5f5; color: #fff; }
-select[data-color="#ab47bc"] { background-color: #ab47bc; color: #fff; }
-select[data-color="#ff8a65"] { background-color: #ff8a65; color: #333; }
+select[name$="_color"] {
+  font-weight: 600;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background-color: #fff;
+  color: #222;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+select[name$="_color"] option { font-weight: 600; color: #222; }
+select[name$="_color"] option[value="#FAFFA0"] { background-color: #FAFFA0; }
+select[name$="_color"] option[value="#FFBCA6"] { background-color: #FFBCA6; }
+select[name$="_color"] option[value="#66bb6a"] { background-color: #d4edda; }
+select[name$="_color"] option[value="#42a5f5"] { background-color: #d1e9ff; }
+select[name$="_color"] option[value="#ab47bc"] { background-color: #ebd4f4; }
+select[name$="_color"] option[value="#ff8a65"] { background-color: #ffe0d6; }
+select[data-color="#FAFFA0"] { border-color: #e6d35c; box-shadow: 0 0 0 3px rgba(230, 211, 92, 0.25); }
+select[data-color="#FFBCA6"] { border-color: #e68a72; box-shadow: 0 0 0 3px rgba(230, 138, 114, 0.25); }
+select[data-color="#66bb6a"] { border-color: #4a9a4f; box-shadow: 0 0 0 3px rgba(74, 154, 79, 0.25); }
+select[data-color="#42a5f5"] { border-color: #2a85c7; box-shadow: 0 0 0 3px rgba(42, 133, 199, 0.25); }
+select[data-color="#ab47bc"] { border-color: #84369a; box-shadow: 0 0 0 3px rgba(132, 54, 154, 0.25); }
+select[data-color="#ff8a65"] { border-color: #d96a48; box-shadow: 0 0 0 3px rgba(217, 106, 72, 0.25); }
+.color-swatch {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.2);
+  display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3);
+}
 
 .check-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 9px; }
 .check-row input[type="checkbox"] { width: 16px; height: 16px; margin-top: 3px; flex: none; accent-color: var(--green-800); }

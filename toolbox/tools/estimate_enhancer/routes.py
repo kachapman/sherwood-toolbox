@@ -24,7 +24,6 @@ from ...config import Config
 from . import pdf_ops
 from .pdf_ops import CODE_REF_HL_HEX
 from .utils.markup_bridge import add_image_links
-from .utils.spell_utils import check_pdf_spelling
 
 bp = Blueprint(
     "estimate_enhancer",
@@ -150,8 +149,6 @@ def analyze():
             estimate_texts.append(text)
             errors_found.extend(pdf_ops.check_qty_and_spelling_errors(text, i + 1))
 
-        errors_found.extend(check_pdf_spelling(
-            filepath, skip_first_page=True, footer_ratio=0.10, page_limit=estimate_end_page))
         errors_found.extend(pdf_ops.check_duplicate_photo_names(reader, estimate_end_page))
         errors_found.sort(key=lambda x: x.get('page', 0))
 

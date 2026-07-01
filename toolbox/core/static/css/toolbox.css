@@ -113,6 +113,13 @@ body {
   font-weight: 600;
 }
 
+.nav-secondary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.nav-secondary a { font-size: 0.85rem; opacity: 0.9; }
+
 .sidebar-foot {
   margin-top: auto;
   padding: 14px 18px;

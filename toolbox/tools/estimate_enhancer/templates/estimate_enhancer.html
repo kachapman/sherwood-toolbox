@@ -13,9 +13,9 @@
     <div class="step-rail"><div class="step-node">1</div></div>
     <div class="step-body">
       <h3 class="step-title">Upload</h3>
-      <p class="step-hint">Provide the Xactimate estimate PDF. It is checked for typos, zero quantities, and duplicate photo names.</p>
+      <p class="step-hint">Provide the Xactimate estimate PDF. It is checked for zero quantities and duplicate photo names.</p>
       <div class="panel upload-area" id="uploadColumn">
-        <h6>Upload an Xactimate PDF to check for common spelling mistakes and zero quantity issues.</h6>
+        <h6>Upload an Xactimate PDF to check for zero quantity issues and duplicate photo names.</h6>
         <form id="uploadForm" enctype="multipart/form-data">
           <input type="file" id="fileInput" name="file" accept=".pdf">
           <input type="hidden" id="filename" name="filename">
@@ -64,6 +64,7 @@
               <option value="#ab47bc">Purple</option>
               <option value="#ff8a65">Coral</option>
             </select>
+            <span class="color-swatch" id="swatch_{{ n }}"></span>
           </div>
           {% endfor %}
           <div class="check-row">
@@ -120,12 +121,12 @@
           <h6>Processed PDF Ready</h6>
           <div id="highlightWarning" class="alert-warning" style="display: none;"></div>
           <p class="small">Documents attached: <span id="docCount">0</span></p>
-          <a id="downloadBtn" href="#" class="btn btn-primary w-100">Download PDF</a>
+          <button id="downloadBtn" class="btn btn-primary w-100">Download PDF</button>
         </div>
 
         <div class="panel" id="previewPanel">
           <p class="panel-label">Final PDF Preview</p>
-          <p class="muted-note">The finished document with highlights, image links, and attached files. Links are clickable here, just as in the downloaded copy.</p>
+          <p class="muted-note">The finished document with highlights, image links, and attached files. Links are clickable here, just as in the downloaded copy. Use the <strong>Download PDF</strong> button above to save the file; the viewer's own download button does not work inside this window.</p>
           <iframe id="previewFrame" title="Final PDF preview"></iframe>
         </div>
       </div>
@@ -307,7 +308,6 @@
             downloadSection = $('downloadSection'), highlightWarning = $('highlightWarning'),
             previewFrame = $('previewFrame');
       if (docCount) docCount.textContent = data.attachments_added;
-      if (downloadBtn) downloadBtn.href = eeUrl(EE_URLS.download, data.filename);
       if (highlightWarning) {
         highlightWarning.textContent = data.highlight_warning || '';
         highlightWarning.style.display = data.highlight_warning ? 'block' : 'none';
@@ -315,13 +315,46 @@
       if (previewFrame) previewFrame.src = eeUrl(EE_URLS.uploads, 'processed_' + data.filename);
       if (downloadSection) downloadSection.style.display = 'block';
       setStep('stepDeliver', 'done');
+
+      // Wire the download button. In pywebview we use the native Save As dialog;
+      // in a regular browser we fall back to a normal download link.
+      if (downloadBtn) {
+        downloadBtn.onclick = async function (e) {
+          e.preventDefault();
+          const processedName = 'processed_' + data.filename;
+          if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Saving...';
+            try {
+              const result = await window.pywebview.api.save_file(processedName);
+              if (!result.ok) {
+                if (result.error !== 'Save cancelled.') {
+                  alert(result.error || 'Could not save file.');
+                }
+              }
+            } catch (err) {
+              alert('Save failed: ' + err.message);
+            } finally {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = 'Download PDF';
+            }
+          } else {
+            window.location.href = eeUrl(EE_URLS.download, data.filename);
+          }
+        };
+      }
     } catch (error) {
       alert('Error: ' + error.message);
     }
     if (loading) loading.style.display = 'none';
   });
 
-  function updateDropdownColor(select) { select.setAttribute('data-color', select.value); }
+  function updateDropdownColor(select) {
+    select.setAttribute('data-color', select.value);
+    const m = select.name.match(/highlight_(\d+)_color/);
+    const swatch = m ? document.getElementById('swatch_' + m[1]) : null;
+    if (swatch) swatch.style.backgroundColor = select.value;
+  }
   document.querySelectorAll('select[name$="_color"]').forEach(d => {
     updateDropdownColor(d);
     d.addEventListener('change', () => updateDropdownColor(d));

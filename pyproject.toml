@@ -1,14 +1,14 @@
 [project]
 name = "sherwood-toolbox"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local toolbox of estimating tools (hub + four tools) as one Flask app"
 requires-python = ">=3.9"
 dependencies = [
     "flask>=3.0",
     "waitress>=3.0",
+    "pywebview>=5.0",
     "PyMuPDF",
     "pypdf",
-    "pyspellchecker",
     "reportlab",
     "Pillow",
     "requests",

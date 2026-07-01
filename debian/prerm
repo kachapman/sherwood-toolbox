@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+APP_DIR="/opt/sherwood-toolbox"
+VENV="$APP_DIR/.venv"
+
+# Remove the generated virtual environment when the package is removed.
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    rm -rf "$VENV"
+fi
+
+exit 0

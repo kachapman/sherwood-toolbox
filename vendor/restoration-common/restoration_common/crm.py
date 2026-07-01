@@ -120,6 +120,7 @@ def fetch_job_info_from_url(url: str) -> dict:
     claim_number = ""
     job_location = ""
     sales_rep = ""
+    crm_job_id = ""
     for script in soup.find_all("script"):
         text = script.string or ""
         m = re.search(r"var customFieldList\s*=\s*(\[.*?\]);", text, re.DOTALL)
@@ -135,12 +136,14 @@ def fetch_job_info_from_url(url: str) -> dict:
                         job_location = " ".join(value.split())
                     elif label == "contractor sales rep":
                         sales_rep = value
+                    elif label in ("crm job/id", "crm job id", "crm job#", "job/id", "job id"):
+                        crm_job_id = value
             except (ValueError, KeyError):
                 pass
             break
 
     # Fallback: parse visible details table if script variable is missing.
-    if not claim_number or not job_location or not sales_rep:
+    if not claim_number or not job_location or not sales_rep or not crm_job_id:
         table = soup.find("table", class_="crm-detailsTable")
         if table:
             for row in table.find_all("tr"):
@@ -157,19 +160,22 @@ def fetch_job_info_from_url(url: str) -> dict:
                     job_location = value
                 if not sales_rep and label == "contractor sales rep":
                     sales_rep = value
+                if not crm_job_id and label in ("crm job/id", "crm job id", "crm job#", "job/id", "job id"):
+                    crm_job_id = value
 
-    job_id = ""
-    page_text = soup.get_text()
-    m = re.search(r"([A-Z]{2})\s*-?\s*(\d{5})", page_text)
-    if m:
-        job_id = f"{m.group(1)}-{m.group(2)}"
-    else:
-        for td in soup.find_all("td", attrs={"colspan": "3"}):
-            text = td.get_text()
-            m = re.search(r"([A-Z]{2})\s*-?\s*(\d{5})", text)
-            if m:
-                job_id = f"{m.group(1)}-{m.group(2)}"
-                break
+    job_id = crm_job_id
+    if not job_id:
+        page_text = soup.get_text()
+        m = re.search(r"([A-Z]{2})\s*-?\s*(\d{5})", page_text)
+        if m:
+            job_id = f"{m.group(1)}-{m.group(2)}"
+        else:
+            for td in soup.find_all("td", attrs={"colspan": "3"}):
+                text = td.get_text()
+                m = re.search(r"([A-Z]{2})\s*-?\s*(\d{5})", text)
+                if m:
+                    job_id = f"{m.group(1)}-{m.group(2)}"
+                    break
 
     missing = [
         k

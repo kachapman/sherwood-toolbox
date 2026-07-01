@@ -1,0 +1,32 @@
+#!/bin/bash
+# Build the per-application Python venv and install the toolbox.
+set -e
+
+APP_DIR="/opt/sherwood-toolbox"
+VENV="$APP_DIR/.venv"
+VENV_PY="$VENV/bin/python"
+
+# pywebview needs the system PyGObject (gi) bindings, so the venv must see
+# system site-packages. Recreate the venv if it was built without that flag.
+needs_recreate=false
+if [ ! -d "$VENV" ]; then
+    needs_recreate=true
+elif ! grep -q '^include-system-site-packages\s*=\s*true$' "$VENV/pyvenv.cfg" 2>/dev/null; then
+    needs_recreate=true
+fi
+
+if [ "$needs_recreate" = true ]; then
+    rm -rf "$VENV"
+    python3 -m venv --system-site-packages "$VENV"
+fi
+
+"$VENV_PY" -m pip install --quiet --upgrade pip
+"$VENV_PY" -m pip install --quiet "$APP_DIR"
+"$VENV_PY" -m pip install --quiet --no-deps "$APP_DIR/vendor/restoration-common"
+
+# Update the desktop database so the launcher appears in the app grid.
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+fi
+
+exit 0
