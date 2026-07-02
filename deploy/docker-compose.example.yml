@@ -1,0 +1,27 @@
+version: "3.8"
+services:
+  sherwood-toolbox:
+    build: .
+    container_name: sherwood-toolbox
+    restart: unless-stopped
+    environment:
+      - TOOLBOX_WEB_MODE=1
+      - TOOLBOX_HOST=0.0.0.0
+      - TOOLBOX_PORT=8777
+      - TOOLBOX_DATA_DIR=/data
+      - TOOLBOX_UPLOAD_DIR=/data/uploads
+      # - TOOLBOX_CRM_BASE_URL=https://office.publicadjustermidwest.com
+    volumes:
+      - toolbox-data:/data
+      # Share CRM creds (optional):
+      # - /root/.config/photo_report_generator:/root/.config/photo_report_generator:ro
+    networks:
+      - web
+    # expose: ["8777"]  # only on the shared network
+
+volumes:
+  toolbox-data:
+
+networks:
+  web:
+    external: true

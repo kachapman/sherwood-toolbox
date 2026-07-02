@@ -50,7 +50,7 @@ cd sherwood-toolbox
 ### .deb package (Debian, Ubuntu, Zorin, Pop!_OS, Linux Mint, etc.)
 
 ```bash
-sudo dpkg -i sherwood-toolbox_0.2.0_amd64.deb
+sudo dpkg -i sherwood-toolbox_0.3.0_amd64.deb
 sudo apt-get install -f   # if dependencies are missing
 ```
 

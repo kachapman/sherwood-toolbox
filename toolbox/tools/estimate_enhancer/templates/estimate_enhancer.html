@@ -16,6 +16,9 @@
       <p class="step-hint">Provide the Xactimate estimate PDF. It is checked for zero quantities and duplicate photo names.</p>
       <div class="panel upload-area" id="uploadColumn">
         <h6>Upload an Xactimate PDF to check for zero quantity issues and duplicate photo names.</h6>
+        {% if caps.web_mode and caps.web_limits %}
+        <p class="muted-note" style="font-size:0.8rem;margin:4px 0;">Web limit: max {{ caps.web_limits.enhancer_max_mb }} MB PDF.</p>
+        {% endif %}
         <form id="uploadForm" enctype="multipart/form-data">
           <input type="file" id="fileInput" name="file" accept=".pdf">
           <input type="hidden" id="filename" name="filename">
@@ -100,7 +103,11 @@
       </div>
 
       <div id="processSection" style="display: none; margin-top: 14px;">
+        <div id="eePhotoNote" class="muted-note" style="margin-bottom:6px;font-size:0.82rem;display:none;"></div>
         <button id="processBtn" class="btn btn-primary w-100">Process PDF</button>
+        {% if caps.web_mode %}
+        <button type="button" id="viewEnhancerLogBtn" class="btn btn-secondary w-100" style="margin-top:8px;display:none;">View Enhancer Log</button>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -122,6 +129,7 @@
           <div id="highlightWarning" class="alert-warning" style="display: none;"></div>
           <p class="small">Documents attached: <span id="docCount">0</span></p>
           <button id="downloadBtn" class="btn btn-primary w-100">Download PDF</button>
+          <button type="button" id="startNewBtn" class="btn btn-secondary w-100" style="margin-top:8px;">Start new</button>
         </div>
 
         <div class="panel" id="previewPanel">
@@ -142,9 +150,16 @@
   const EE_URLS = {
     analyze: "{{ url_for('estimate_enhancer.analyze') }}",
     process: "{{ url_for('estimate_enhancer.process') }}",
+    processStatus: "{{ url_for('estimate_enhancer.process_status') }}?filename=__F__",
+    processLog: "{{ url_for('estimate_enhancer.process_log') }}?filename=__F__",
     download: "{{ url_for('estimate_enhancer.download_file', filename='__F__') }}",
     uploads: "{{ url_for('estimate_enhancer.serve_upload', filename='__F__') }}",
   };
+  {% if caps.web_mode and caps.web_limits %}
+  const EE_WEB_LIMITS = { enhancer_max_photo_pages: {{ caps.web_limits.enhancer_max_photo_pages }} };
+  {% else %}
+  const EE_WEB_LIMITS = null;
+  {% endif %}
   function eeUrl(tpl, name) { return tpl.replace('__F__', encodeURIComponent(name)); }
 
   let currentFilename = '';
@@ -159,6 +174,42 @@
   }
   document.querySelectorAll('.step-node').forEach(n => n.setAttribute('data-num', n.textContent));
 
+  function clearAllState() {
+    // Clear everything for a brand new session (including previous results)
+    currentFilename = '';
+    const filenameEl = $('filename'); if (filenameEl) filenameEl.value = '';
+    ['downloadSection','highlightCard','docsCard','userDocsCard','processSection','resultsColumn'].forEach(id => {
+      const el = $(id); if (el) el.style.display = 'none';
+    });
+    const errorsSection = $('errorsSection'); if (errorsSection) errorsSection.innerHTML = '';
+    const copyBtn = $('copyErrorsBtn'); if (copyBtn) copyBtn.style.display = 'none';
+    const docCheckboxes = document.querySelectorAll('#docsCard input[type="checkbox"]');
+    docCheckboxes.forEach(cb => { cb.checked = false; });
+    const hw = $('highlightWarning'); if (hw) { hw.textContent = ''; hw.style.display = 'none'; }
+    const docCount = $('docCount'); if (docCount) docCount.textContent = '0';
+    const preview = $('previewFrame'); if (preview) preview.src = 'about:blank';
+    const logBtn = $('viewEnhancerLogBtn'); if (logBtn) logBtn.style.display = 'none';
+    const note = $('eePhotoNote'); if (note) { note.style.display = 'none'; note.textContent = ''; }
+    setStep('stepUpload', 'active'); setStep('stepReview', 'pending');
+    setStep('stepEnhance', 'pending'); setStep('stepDeliver', 'pending');
+  }
+
+  // When the user picks a new file (even same basename), start a fresh session immediately.
+  const fileInputEl = document.getElementById('fileInput');
+  if (fileInputEl) {
+    fileInputEl.addEventListener('change', async () => {
+      // Tell server to drop any prior artifacts for the previous unique name (best effort)
+      if (currentFilename) {
+        try {
+          const fd = new FormData();
+          fd.append('filename', currentFilename);
+          await fetch('{{ url_for("estimate_enhancer.clear_current") }}', { method: 'POST', body: fd });
+        } catch (_) {}
+      }
+      clearAllState();
+    });
+  }
+
   document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fileInput = document.getElementById('fileInput');
@@ -168,14 +219,8 @@
     if (loading) loading.style.display = 'block';
     if (loadingText) loadingText.textContent = 'Analyzing document for errors...';
 
-    ['downloadSection','highlightCard','docsCard','userDocsCard','processSection'].forEach(id => {
-      const el = $(id); if (el) el.style.display = 'none';
-    });
-    const errorsSection = $('errorsSection');
-    if (errorsSection) errorsSection.innerHTML = '<p class="text-muted">Analyzing...</p>';
-
-    setStep('stepUpload', 'active'); setStep('stepReview', 'pending');
-    setStep('stepEnhance', 'pending'); setStep('stepDeliver', 'pending');
+    // Ensure we are in a clean session (in case change didn't fire)
+    clearAllState();
 
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
@@ -239,6 +284,18 @@
         ['highlightCard','docsCard','userDocsCard','processSection','resultsColumn'].forEach(id => {
           const el = $(id); if (el) el.style.display = 'block';
         });
+        // Web-only photo page note (muted, shows limit value when over)
+        const note = $('eePhotoNote');
+        if (note && EE_WEB_LIMITS && typeof data.photo_page_count === 'number') {
+          const lim = EE_WEB_LIMITS.enhancer_max_photo_pages || 50;
+          note.textContent = 'Photo pages: ' + data.photo_page_count + (data.photo_page_count > lim ? (' (web tuned for up to ' + lim + ')') : '');
+          note.style.display = 'block';
+          if (data.photo_page_count > lim) {
+            note.textContent += '. Large jobs may be slow or fail on this server.';
+          }
+        }
+        const logBtn = $('viewEnhancerLogBtn');
+        if (logBtn) logBtn.style.display = (EE_WEB_LIMITS ? 'block' : 'none');
         setStep('stepUpload', 'done'); setStep('stepReview', 'done');
         setStep('stepEnhance', 'active');
         growTermInputs();
@@ -255,99 +312,213 @@
     }
   });
 
-  const processBtn = $('processBtn');
-  if (processBtn) processBtn.addEventListener('click', async () => {
-    const loading = $('loading'), processSection = $('processSection');
-    if (loading) {
-      loading.innerHTML = '<div class="spinner-border" role="status"></div><p id="loadingText">Processing PDF with highlights and attachments...</p>';
-      loading.style.display = 'block';
-    }
-    if (processSection) processSection.style.display = 'none';
-    setStep('stepEnhance', 'done'); setStep('stepDeliver', 'active');
+  // Polling + log modal (used for both web and desktop; log button is web-only in markup)
+  let pollTimer = null;
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
-    const formData = new FormData();
-    formData.append('filename', currentFilename);
-    formData.append('confirm', 'yes');
-
-    ['highlight_1','highlight_2','highlight_3','highlight_4','highlight_5'].forEach(id => {
-      const termInput = document.querySelector(`[name="${id}_term"]`);
-      const colorInput = document.querySelector(`[name="${id}_color"]`);
-      if (termInput && termInput.value) {
-        formData.append(`${id}_term`, termInput.value);
-        formData.append(`${id}_color`, colorInput.value);
+  function startPolling(filename, onDone, onError) {
+    stopPolling();
+    const loading = $('loading');
+    const loadingText = $('loadingText');
+    const processSection = $('processSection');
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(eeUrl(EE_URLS.processStatus, filename));
+        if (!r.ok) { stopPolling(); onError('Status check failed'); return; }
+        const st = await r.json();
+        if (st.status === 'running') {
+          if (loadingText && st.stage) loadingText.textContent = st.stage;
+          return;
+        }
+        stopPolling();
+        if (st.status === 'done') {
+          onDone(st);
+        } else if (st.status === 'error') {
+          onError(st.error || 'Processing failed');
+        } else {
+          onError('Unexpected status');
+        }
+      } catch (e) {
+        stopPolling();
+        onError(e.message || 'Network error during polling');
       }
+    }, 3000);
+  }
+
+  // Enhancer Log modal (web only in UI; safe to call anytime)
+  let logModal = null;
+  function ensureLogModal() {
+    if (logModal) return logModal;
+    logModal = document.createElement('div');
+    logModal.className = 'file-modal';
+    logModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:1000;display:none;align-items:center;justify-content:center;';
+    logModal.innerHTML = `
+      <div class="panel" style="width:92%;max-width:720px;max-height:80vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);">
+          <h3 style="margin:0;font-size:1.05rem;color:var(--green-900);">Enhancer Log</h3>
+          <div>
+            <button type="button" class="btn btn-secondary" id="logRefreshBtn">Refresh</button>
+            <button type="button" class="btn btn-secondary" id="logCloseBtn">Close</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px;">
+          <pre id="logBody" style="white-space:pre-wrap;font-family:monospace;font-size:0.82rem;max-height:55vh;overflow:auto;margin:0;background:#0b0f0a;color:#e7eede;padding:10px;border-radius:6px;border:1px solid var(--line);"></pre>
+        </div>
+      </div>`;
+    document.body.appendChild(logModal);
+    logModal.querySelector('#logCloseBtn').onclick = () => { logModal.style.display = 'none'; };
+    return logModal;
+  }
+
+  const viewLogBtn = $('viewEnhancerLogBtn');
+  if (viewLogBtn) {
+    viewLogBtn.addEventListener('click', async () => {
+      if (!currentFilename) return;
+      const modal = ensureLogModal();
+      const body = modal.querySelector('#logBody');
+      body.textContent = 'Loading...';
+      modal.style.display = 'flex';
+      async function loadLog() {
+        try {
+          const r = await fetch(eeUrl(EE_URLS.processLog, currentFilename));
+          const txt = await r.text();
+          body.textContent = txt || '(no log yet)';
+        } catch (e) {
+          body.textContent = 'Failed to load log: ' + e.message;
+        }
+      }
+      modal.querySelector('#logRefreshBtn').onclick = loadLog;
+      loadLog();
     });
-    const codeRefs = $('highlightCodeRefs');
-    if (codeRefs && codeRefs.checked) formData.append('highlight_code_refs', 'on');
+  }
 
-    const docsCard = $('docsCard');
-    if (docsCard && docsCard.style.display !== 'none') {
-      docsCard.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => formData.append(cb.name, 'on'));
-    }
-    const userFileInput = $('userFileInput');
-    if (userFileInput && userFileInput.files.length > 0) {
-      for (let i = 0; i < userFileInput.files.length; i++) formData.append('user_pdf', userFileInput.files[i]);
-    }
+  // Wire the process button to starter + poll path
+  const processBtn2 = $('processBtn');
+  if (processBtn2) {
+    // remove prior listener by replacing node (keeps markup clean)
+    const newBtn = processBtn2.cloneNode(true);
+    processBtn2.parentNode.replaceChild(newBtn, processBtn2);
+    newBtn.addEventListener('click', async () => {
+      const loading = $('loading');
+      const processSection = $('processSection');
+      const loadingText = $('loadingText');
+      if (loading) {
+        loading.innerHTML = '<div class="spinner-border" role="status"></div><p id="loadingText">Starting job...</p>';
+        loading.style.display = 'block';
+      }
+      if (processSection) processSection.style.display = 'none';
+      setStep('stepEnhance', 'done'); setStep('stepDeliver', 'active');
 
-    try {
-      const response = await fetch(EE_URLS.process, { method: 'POST', body: formData });
-      const text = await response.text();
-      let data;
-      try { data = JSON.parse(text); }
-      catch (e) { alert('Error processing PDF: ' + text.substring(0, 200)); if (loading) loading.style.display = 'none'; return; }
+      const formData = new FormData();
+      formData.append('filename', currentFilename);
+      formData.append('confirm', 'yes');
 
-      if (data.error) {
-        alert(data.error);
+      ['highlight_1','highlight_2','highlight_3','highlight_4','highlight_5'].forEach(id => {
+        const termInput = document.querySelector(`[name="${id}_term"]`);
+        const colorInput = document.querySelector(`[name="${id}_color"]`);
+        if (termInput && termInput.value) {
+          formData.append(`${id}_term`, termInput.value);
+          formData.append(`${id}_color`, colorInput.value);
+        }
+      });
+      const codeRefs = $('highlightCodeRefs');
+      if (codeRefs && codeRefs.checked) formData.append('highlight_code_refs', 'on');
+
+      const docsCard = $('docsCard');
+      if (docsCard && docsCard.style.display !== 'none') {
+        docsCard.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => formData.append(cb.name, 'on'));
+      }
+      const userFileInput = $('userFileInput');
+      if (userFileInput && userFileInput.files.length > 0) {
+        for (let i = 0; i < userFileInput.files.length; i++) formData.append('user_pdf', userFileInput.files[i]);
+      }
+
+      try {
+        const resp = await fetch(EE_URLS.process, { method: 'POST', body: formData });
+        const text = await resp.text();
+        let startData;
+        try { startData = JSON.parse(text); } catch (e) {
+          alert('Error starting job: ' + text.substring(0, 200));
+          if (loading) loading.style.display = 'none';
+          if (processSection) processSection.style.display = 'block';
+          setStep('stepEnhance', 'active'); setStep('stepDeliver', 'pending');
+          return;
+        }
+        if (startData.error) {
+          alert(startData.error);
+          if (loading) loading.style.display = 'none';
+          if (processSection) processSection.style.display = 'block';
+          setStep('stepEnhance', 'active'); setStep('stepDeliver', 'pending');
+          return;
+        }
+
+        // Job started; begin polling
+        if (loadingText) loadingText.textContent = 'Queued...';
+        startPolling(currentFilename,
+          function onDone(result) {
+            if (loading) loading.style.display = 'none';
+            const docCount = $('docCount'), downloadBtn = $('downloadBtn'),
+                  downloadSection = $('downloadSection'), highlightWarning = $('highlightWarning'),
+                  previewFrame = $('previewFrame');
+            if (docCount) docCount.textContent = result.attachments_added;
+            if (highlightWarning) {
+              highlightWarning.textContent = result.highlight_warning || '';
+              highlightWarning.style.display = result.highlight_warning ? 'block' : 'none';
+            }
+            if (previewFrame) previewFrame.src = eeUrl(EE_URLS.uploads, 'processed_' + result.filename);
+            if (downloadSection) downloadSection.style.display = 'block';
+            setStep('stepDeliver', 'done');
+
+            if (downloadBtn) {
+              downloadBtn.onclick = async function (e) {
+                e.preventDefault();
+                const processedName = 'processed_' + result.filename;
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+                  downloadBtn.disabled = true;
+                  downloadBtn.textContent = 'Saving...';
+                  try {
+                    const sres = await window.pywebview.api.save_file(processedName);
+                    if (!sres.ok) {
+                      if (sres.error !== 'Save cancelled.') alert(sres.error || 'Could not save file.');
+                    }
+                  } catch (err) { alert('Save failed: ' + err.message); }
+                  finally { downloadBtn.disabled = false; downloadBtn.textContent = 'Download PDF'; }
+                } else {
+                  window.location.href = eeUrl(EE_URLS.download, result.filename);
+                }
+              };
+            }
+
+            const startNewBtn = $('startNewBtn');
+            if (startNewBtn) {
+              startNewBtn.onclick = async function () {
+                try {
+                  const fd = new FormData();
+                  fd.append('filename', result.filename || currentFilename || '');
+                  await fetch('{{ url_for("estimate_enhancer.clear_current") }}', { method: 'POST', body: fd });
+                } catch (_) {}
+                clearAllState();
+                if (downloadSection) downloadSection.style.display = 'none';
+                const preview = $('previewFrame'); if (preview) preview.src = 'about:blank';
+                if (fileInputEl) fileInputEl.value = '';
+              };
+            }
+          },
+          function onError(msg) {
+            alert('Error: ' + msg);
+            if (loading) loading.style.display = 'none';
+            if (processSection) processSection.style.display = 'block';
+            setStep('stepEnhance', 'active'); setStep('stepDeliver', 'pending');
+          }
+        );
+      } catch (error) {
+        alert('Error: ' + error.message);
+        if (loading) loading.style.display = 'none';
         if (processSection) processSection.style.display = 'block';
         setStep('stepEnhance', 'active'); setStep('stepDeliver', 'pending');
-        if (loading) loading.style.display = 'none';
-        return;
       }
-
-      const docCount = $('docCount'), downloadBtn = $('downloadBtn'),
-            downloadSection = $('downloadSection'), highlightWarning = $('highlightWarning'),
-            previewFrame = $('previewFrame');
-      if (docCount) docCount.textContent = data.attachments_added;
-      if (highlightWarning) {
-        highlightWarning.textContent = data.highlight_warning || '';
-        highlightWarning.style.display = data.highlight_warning ? 'block' : 'none';
-      }
-      if (previewFrame) previewFrame.src = eeUrl(EE_URLS.uploads, 'processed_' + data.filename);
-      if (downloadSection) downloadSection.style.display = 'block';
-      setStep('stepDeliver', 'done');
-
-      // Wire the download button. In pywebview we use the native Save As dialog;
-      // in a regular browser we fall back to a normal download link.
-      if (downloadBtn) {
-        downloadBtn.onclick = async function (e) {
-          e.preventDefault();
-          const processedName = 'processed_' + data.filename;
-          if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Saving...';
-            try {
-              const result = await window.pywebview.api.save_file(processedName);
-              if (!result.ok) {
-                if (result.error !== 'Save cancelled.') {
-                  alert(result.error || 'Could not save file.');
-                }
-              }
-            } catch (err) {
-              alert('Save failed: ' + err.message);
-            } finally {
-              downloadBtn.disabled = false;
-              downloadBtn.textContent = 'Download PDF';
-            }
-          } else {
-            window.location.href = eeUrl(EE_URLS.download, data.filename);
-          }
-        };
-      }
-    } catch (error) {
-      alert('Error: ' + error.message);
-    }
-    if (loading) loading.style.display = 'none';
-  });
+    });
+  }
 
   function updateDropdownColor(select) {
     select.setAttribute('data-color', select.value);
@@ -355,6 +526,9 @@
     const swatch = m ? document.getElementById('swatch_' + m[1]) : null;
     if (swatch) swatch.style.backgroundColor = select.value;
   }
+
+  // Expose clear for any other entry points
+  window.eeClearAll = clearAllState;
   document.querySelectorAll('select[name$="_color"]').forEach(d => {
     updateDropdownColor(d);
     d.addEventListener('change', () => updateDropdownColor(d));

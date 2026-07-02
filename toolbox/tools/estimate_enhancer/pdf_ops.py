@@ -325,6 +325,30 @@ def extract_highlight_configs(form, *, auto_terms=None, auto_color=CODE_REF_HL_H
     return configs
 
 
+def extract_highlight_configs_from_dict(hd, *, auto_terms=None, auto_color=CODE_REF_HL_HEX):
+    """Like extract_highlight_configs but accepts a plain dict from the job spec."""
+    configs = []
+    seen_terms = set()
+    for key in ['highlight_1', 'highlight_2', 'highlight_3', 'highlight_4', 'highlight_5']:
+        item = (hd or {}).get(key) or {}
+        raw = (item.get('term') or '').strip()
+        if not raw:
+            continue
+        color = normalize_highlight_color((item.get('color') or '').strip())
+        for term in split_term_input(raw):
+            if term in seen_terms:
+                continue
+            seen_terms.add(term)
+            configs.append({'term': term, 'color': color})
+    for raw_term in (auto_terms or []):
+        term = (raw_term or '').strip()
+        if not term or term in seen_terms:
+            continue
+        seen_terms.add(term)
+        configs.append({'term': term, 'color': normalize_highlight_color(auto_color)})
+    return configs
+
+
 def build_fork_highlight_rules(highlight_configs: list) -> list:
     """Build fork-compatible highlight rules payload from normalized terms."""
     rules = []

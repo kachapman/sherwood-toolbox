@@ -80,6 +80,16 @@ If dependency errors appear: `sudo apt-get install -f`.
 - `.deb` metadata: `debian/`
 - Build script: `run/build-deb.sh`
 
+### Web deployment + auth
+- Web mode flag + limits: `toolbox/config.py` (WEB_MODE, WEB_*_MAX_*)
+- Auth + tokens (store, bootstrap, roles): `toolbox/core/auth.py`
+- App wiring (before_request, role context, visible tools): `toolbox/app.py`
+- Auth routes + Admin token UI: `toolbox/core/hub.py`, `toolbox/core/templates/admin.html`, `login.html`
+- Sidebar visibility for roles: `toolbox/core/templates/base.html`
+- Web limits notices + server guards: Photo Report routes + template, Enhancer template
+- Deploy docs: `deploy/DEPLOY.md`
+- Update also: `STRUCTURE.md` (add auth/limits paths)
+
 See `STRUCTURE.md` for a full path-by-path reference.
 
 ## Conventions
@@ -155,6 +165,23 @@ After changes that affect the desktop shell, packaging, or CRM:
 - [ ] Estimate Enhancer downloads show a Save As dialog.
 - [ ] Documents / Photo Report panels tint when the company dropdown changes.
 - [ ] CRM Fetch populates customer, claim, address, and Job/ID fields.
+
+**CRITICAL:** After editing any .py files you MUST restart the server (Ctrl+C then relaunch). waitress is started with use_reloader=False and does not pick up Python changes at runtime. Templates/CSS/JS usually update without restart (still do a hard refresh in the browser).
+
+### Web + auth + limits testing checklist
+- [ ] With `TOOLBOX_WEB_MODE=1`, unauthenticated requests redirect to `/login`.
+- [ ] First login with any token succeeds and creates an employee token (bootstrap).
+- [ ] Employees see all 4 tools + Code Docs + Archive + Admin in the sidebar.
+- [ ] Customers see only Estimate Enhancer + IWS; Photo Report, Documents, folders, and Admin are hidden/redirected.
+- [ ] Admin (employee) can create/revoke employee and customer tokens; plaintext shown only once.
+- [ ] Logout clears the cookie and subsequent access redirects to login.
+- [ ] Photo Report web UI shows limit notice and has disabled size input; server rejects >N photos or >M MB per photo.
+- [ ] Estimate Enhancer shows the web PDF size notice; server rejects PDFs above the limit.
+- [ ] Limits are visible to all web users; only editable via Admin (employee).
+- [ ] CRM deal title search works in Photo Report and Documents (Search → select → explicit "Fetch Details" button) when creds present.
+- [ ] Logout / clear cookie used when switching employee ↔ customer test tokens.
+- [ ] File manager modals (Code Docs / Archive) work for employees in web mode.
+- [ ] Desktop/AppImage builds ignore WEB_MODE, tokens, and web limits (full access, no login).
 
 For AppImage + Fedora 43 + AMD specifically:
 - [ ] On a Fedora 43 machine (or the Ubuntu CI runner): build succeeds with `python3-gobject` + `webkit2gtk4.1` (or equivalent `gir1.2-webkit2-4.1`) present.

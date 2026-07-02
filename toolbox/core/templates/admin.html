@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Admin - Sherwood Toolbox{% endblock %}
+{% block page_title %}Admin{% endblock %}
+{% block page_subtitle %}Manage settings{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <h2>Web Limits</h2>
+  <p class="panel-hint">These limits apply only on the web version. All users see the current values in the tools. Desktop is unaffected.</p>
+  <form id="limitsForm" class="form-grid">
+    <div class="field">
+      <label>Photo Report: Max photos</label>
+      <input type="number" name="photo_max_count" value="{{ limits.photo_max_count }}" min="1">
+    </div>
+    <div class="field">
+      <label>Photo Report: Max MB per photo</label>
+      <input type="number" name="photo_max_mb_per_file" value="{{ limits.photo_max_mb_per_file }}" min="1">
+    </div>
+    <div class="field">
+      <label>Estimate Enhancer: Max PDF MB</label>
+      <input type="number" name="enhancer_max_mb" value="{{ limits.enhancer_max_mb }}" min="1">
+    </div>
+    <div class="field">
+      <label>Estimate Enhancer: Max photo pages (web only)</label>
+      <input type="number" name="enhancer_max_photo_pages" value="{{ limits.enhancer_max_photo_pages }}" min="1">
+    </div>
+    <div class="button-row full">
+      <button type="button" class="btn btn-primary" id="saveLimitsBtn">Save Limits</button>
+      <span class="muted-note" id="limitsMsg"></span>
+    </div>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>CRM Credentials</h2>
+  <p class="panel-hint">Update the shared CRM login used for Fetch on Photo Report and Documents. The username is shown in full. Password is never displayed.</p>
+
+  {% if current_crm_user %}
+  <p><strong>Current:</strong> {{ current_crm_user }}</p>
+  {% else %}
+  <p class="muted-note">No CRM credentials saved yet.</p>
+  {% endif %}
+
+  <form id="crmForm" class="form-grid" style="margin-top:12px;">
+    <div class="field">
+      <label for="crmUser">CRM username</label>
+      <input type="text" id="crmUser" name="username" value="{{ current_crm_user or '' }}" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="crmPass">CRM password</label>
+      <input type="password" id="crmPass" name="password" autocomplete="current-password">
+    </div>
+    <div class="button-row full">
+      <button type="button" class="btn btn-primary" id="saveBtn">Test &amp; Save</button>
+      <button type="button" class="btn btn-secondary" id="clearBtn">Clear saved credentials</button>
+      <span class="muted-note" id="crmMsg"></span>
+    </div>
+  </form>
+</div>
+
+{% if caps.is_employee %}
+<div class="panel">
+  <h2>Access Tokens</h2>
+  <p class="panel-hint">Create tokens for employees (full access) or customers (Enhancer + IWS only). Plaintext shown only once.</p>
+
+  <form id="tokenCreateForm" class="form-grid" style="margin-bottom:12px;">
+    <div class="field">
+      <label>Role</label>
+      <select name="role">
+        <option value="employee">Employee (full)</option>
+        <option value="customer">Customer (limited)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Label (optional)</label>
+      <input type="text" name="label" placeholder="e.g. Jane D.">
+    </div>
+    <div class="button-row full">
+      <button type="button" class="btn btn-primary" id="createTokenBtn">Create token</button>
+      <span class="muted-note" id="tokenMsg"></span>
+    </div>
+  </form>
+
+  <div id="newTokenBox" style="display:none;margin:8px 0;padding:8px;border:1px dashed var(--line);border-radius:var(--radius);">
+    <strong>New token (copy now):</strong>
+    <input type="text" id="newTokenInput" readonly style="font-family:monospace;width:100%;margin:4px 0 8px;border:1px solid var(--line);padding:4px;border-radius:4px;background:#fff;">
+    <button type="button" class="btn btn-secondary" onclick="copyNewToken()">Copy</button>
+    <button type="button" class="btn btn-secondary" onclick="doneWithToken()">Done</button>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;font-size:0.92rem;">
+    <thead>
+      <tr style="text-align:left;border-bottom:1px solid var(--line);">
+        <th style="padding:4px 6px;">ID</th>
+        <th style="padding:4px 6px;">Role</th>
+        <th style="padding:4px 6px;">Label</th>
+        <th style="padding:4px 6px;">Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tokens %}
+      <tr>
+        <td style="padding:4px 6px;font-family:monospace;">{{ t.id }}</td>
+        <td style="padding:4px 6px;">{{ t.role }}</td>
+        <td style="padding:4px 6px;">{{ t.label or '' }}</td>
+        <td style="padding:4px 6px;">{{ t.created }}</td>
+        <td style="padding:4px 6px;">
+          <button type="button" class="btn btn-secondary btn-sm" data-revoke="{{ t.id }}">Revoke</button>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not tokens %}<tr><td colspan="5" class="muted-note" style="padding:6px;">No tokens yet.</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    // CRM creds
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const msg = document.getElementById('crmMsg');
+    const user = document.getElementById('crmUser');
+    const pass = document.getElementById('crmPass');
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const u = (user && user.value || '').trim();
+        const p = (pass && pass.value || '').trim();
+        if (!u || !p) { msg.textContent = 'Enter both a username and password.'; return; }
+        msg.textContent = 'Verifying...';
+        saveBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('username', u);
+        fd.append('password', p);
+        try {
+          const r = await fetch('{{ url_for("core.admin_crm") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (!data.ok) {
+            msg.textContent = data.error || 'Invalid CRM login.';
+            saveBtn.disabled = false;
+            return;
+          }
+          msg.textContent = 'Updated and verified.';
+          setTimeout(() => { location.reload(); }, 800);
+        } catch (e) {
+          msg.textContent = 'Error: ' + e.message;
+          saveBtn.disabled = false;
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!confirm('Clear the saved CRM credentials?')) return;
+        msg.textContent = 'Clearing...';
+        clearBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('action', 'clear');
+        try {
+          const r = await fetch('{{ url_for("core.admin_crm") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok) {
+            msg.textContent = 'Cleared.';
+            setTimeout(() => { location.reload(); }, 600);
+          } else {
+            msg.textContent = 'Could not clear.';
+            clearBtn.disabled = false;
+          }
+        } catch (e) {
+          msg.textContent = 'Error: ' + e.message;
+          clearBtn.disabled = false;
+        }
+      });
+    }
+
+    // Web limits
+    const saveLimits = document.getElementById('saveLimitsBtn');
+    const limitsMsg = document.getElementById('limitsMsg');
+    const limitsForm = document.getElementById('limitsForm');
+    if (saveLimits && limitsForm) {
+      saveLimits.addEventListener('click', async () => {
+        const fd = new FormData(limitsForm);
+        saveLimits.disabled = true;
+        limitsMsg.textContent = 'Saving...';
+        try {
+          const r = await fetch('{{ url_for("core.admin_limits") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok) {
+            limitsMsg.textContent = 'Saved.';
+            setTimeout(() => { location.reload(); }, 700);
+          } else {
+            limitsMsg.textContent = data.error || 'Save failed.';
+            saveLimits.disabled = false;
+          }
+        } catch (e) {
+          limitsMsg.textContent = 'Error.';
+          saveLimits.disabled = false;
+        }
+      });
+    }
+
+    // Tokens (employee only section)
+    const createBtn = document.getElementById('createTokenBtn');
+    const tokenMsg = document.getElementById('tokenMsg');
+    const newBox = document.getElementById('newTokenBox');
+    const newTokenEl = document.getElementById('newToken');
+    const newTokenInput = document.getElementById('newTokenInput');
+    if (createBtn) {
+      createBtn.addEventListener('click', async () => {
+        const form = document.getElementById('tokenCreateForm');
+        const fd = new FormData(form);
+        createBtn.disabled = true;
+        tokenMsg.textContent = 'Creating...';
+        newBox.style.display = 'none';
+        try {
+          const r = await fetch('{{ url_for("core.admin_tokens_create") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (!data.ok) {
+            tokenMsg.textContent = data.error || 'Failed';
+            createBtn.disabled = false;
+            return;
+          }
+          tokenMsg.textContent = 'Created.';
+          if (newTokenEl) newTokenEl.textContent = data.token;
+          if (newTokenInput) newTokenInput.value = data.token;
+          newBox.style.display = 'block';
+        } catch (e) {
+          tokenMsg.textContent = 'Error.';
+          createBtn.disabled = false;
+        }
+      });
+    }
+    window.copyNewToken = function() {
+      const t = (newTokenEl && newTokenEl.textContent) || (newTokenInput && newTokenInput.value) || '';
+      if (!t) return;
+      const onOk = () => {
+        const old = tokenMsg.textContent;
+        tokenMsg.textContent = 'Copied.';
+        setTimeout(() => { tokenMsg.textContent = old || ''; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(onOk).catch(() => fallbackCopy(t, onOk));
+      } else {
+        fallbackCopy(t, onOk);
+      }
+    };
+    function fallbackCopy(text, onDone) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      } catch (_) {}
+      if (onDone) onDone();
+    }
+    window.doneWithToken = function() {
+      if (newBox) newBox.style.display = 'none';
+      if (newTokenInput) newTokenInput.value = '';
+      location.reload();
+    };
+    document.querySelectorAll('button[data-revoke]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Revoke this token?')) return;
+        const fd = new FormData();
+        fd.append('id', btn.getAttribute('data-revoke'));
+        try {
+          const r = await fetch('{{ url_for("core.admin_tokens_revoke") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok) location.reload();
+          else alert(data.error || 'Failed');
+        } catch (e) { alert('Error'); }
+      });
+    });
+  })();
+</script>
+{% endblock %}

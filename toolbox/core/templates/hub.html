@@ -2,6 +2,7 @@
 {% block title %}Sherwood Toolbox{% endblock %}
 {% block page_title %}Hub{% endblock %}
 {% block page_subtitle %}Pick a tool to open{% endblock %}
+<!-- DEBUG: role={{ caps.role }} tools=[{% for t in tools %}{{ t.id }}{% if not loop.last %}, {% endif %}{% endfor %}] -->
 
 {% block content %}
 <div class="tile-grid">

@@ -28,8 +28,9 @@ blueprint per tool, run locally on `127.0.0.1`.
 | `toolbox/registry.py` | The list of tools (id, label, icon, url_prefix, description, ready). Single source of truth. | Add, remove, rename, or reorder a tool. Set `ready=True` when its blueprint exists. |
 | `toolbox/app.py` | `create_app()`: builds Flask, registers the hub + each tool blueprint (or a placeholder when `ready=False`), injects `tools` and `caps` into templates. | Change app-wide wiring or context. |
 | `toolbox/config.py` | Env-driven paths and flags (upload dir, fork path, `OFFLINE`, max upload). | Change where files are written or default limits. |
-| `toolbox/core/hub.py` | The hub blueprint (`/`) and the shared `POST /crm/credentials` route (verify + save a CRM login). | Change the hub or credential-save logic. |
-| `toolbox/core/capabilities.py` | Detects network / CRM creds / fork presence into `caps`. | Change graceful-degradation logic. |
+| `toolbox/core/hub.py` | The hub blueprint (`/`) and the shared `POST /crm/credentials` route (verify + save a CRM login). Also holds web auth routes and token admin endpoints in WEB_MODE. | Change the hub, credential logic, or token admin. |
+| `toolbox/core/auth.py` | Token store (hashed), bootstrap, validate, cookie helpers, role helpers. | Change auth behavior or token persistence. |
+| `toolbox/core/capabilities.py` | Detects network / CRM creds / fork + web_mode + web_limits + role into `caps`. | Change graceful-degradation or web capability exposure. |
 | `toolbox/core/crm.py` | Graceful wrapper around `restoration_common.fetch_job_info_from_url`, plus `parse_address` (splits a CRM address into street + City/State/ZIP). | Change CRM error handling or address parsing shared by Photo Report and Documents. |
 | `toolbox/core/templates/_crm_credentials.html` + `static/js/crm_credentials.js` | The CRM credential entry form, shown in both tools' CRM panels when `caps.crm_configured` is false. | Change how a machine enters its CRM login. |
 

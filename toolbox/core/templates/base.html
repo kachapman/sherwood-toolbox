@@ -26,18 +26,30 @@
         {% for t in tools %}
         <li><a href="{{ url_for(t.id ~ '.index') }}"
                class="{{ 'is-active' if request.blueprint == t.id }}">
-          {{ t.icon | safe }} {{ t.label }}</a></li>
+            {{ t.icon | safe }} {{ t.label }}</a></li>
         {% endfor %}
       </ul>
       <ul class="nav nav-secondary">
+        {% if caps.is_employee %}
         <li><a href="#" class="js-open-folder" data-folder="code_docs">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19V8a2 2 0 0 0-2-2h-6l-2-3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2z"/></svg>
           Code Docs</a></li>
         <li><a href="#" class="js-open-folder" data-folder="archive">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 8h16M4 13h16M4 18h16"/><path d="M9 6h6M9 11h6M9 16h6"/></svg>
           Archive</a></li>
+        <li><a href="{{ url_for('core.admin') }}"
+               class="{{ 'is-active' if request.endpoint and request.endpoint.startswith('core.admin') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06-.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Admin</a></li>
+        {% endif %}
       </ul>
-      <div class="sidebar-foot">Local app. Runs offline.</div>
+      <div class="sidebar-foot">
+        {% if caps.web_mode %}
+          <span style="opacity:0.65;font-size:0.72rem;">Web</span>{% if caps.role %} · {{ caps.role }}{% endif %} · <a href="{{ url_for('core.logout') }}" style="color:inherit;text-decoration:underline;">Sign out</a>
+        {% else %}
+          <span style="opacity:0.65;font-size:0.72rem;">Local</span>
+        {% endif %}
+      </div>
     </aside>
 
     <div class="main">
@@ -45,7 +57,7 @@
         <h1>{% block page_title %}{% endblock %}
           <span class="subtitle">{% block page_subtitle %}{% endblock %}</span>
         </h1>
-        <span class="badge">{% block badge %}Local{% endblock %}</span>
+        <span class="badge">{% block badge %}{% endblock %}</span>
       </div>
 
       <div class="content">
@@ -56,9 +68,39 @@
       </div>
     </div>
   </div>
+
   <script src="{{ url_for('static', filename='js/company_theme.js') }}"></script>
   <script src="{{ url_for('static', filename='js/folder_links.js') }}"></script>
   <script src="{{ url_for('static', filename='js/crm_credentials.js') }}"></script>
   {% block extra_scripts %}{% endblock %}
+
+  <!-- Simple modal for file manager (Code Docs / Archive) - matches app color scheme -->
+  <div id="fileModal" class="file-modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:1000;display:none;align-items:center;justify-content:center;">
+    <div class="panel" style="width:92%;max-width:720px;max-height:80vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);">
+        <h3 id="fileModalTitle" style="margin:0;font-size:1.05rem;color:var(--green-900);">Files</h3>
+        <button type="button" class="btn btn-secondary" onclick="window.closeFileModal && window.closeFileModal()">Close</button>
+      </div>
+      <div style="padding:16px 18px;">
+        <div id="fileModalBody"></div>
+        <div id="fileModalUpload" style="margin-top:12px;display:none;">
+          <div class="dropzone" id="fileDropzone" style="padding:20px;">
+            <strong>Upload to Code Docs</strong>
+            <div style="font-size:0.8rem;color:var(--muted);margin:4px 0 8px;">Any file allowed</div>
+            <input type="file" id="fileUploadInput">
+            <button type="button" class="btn btn-primary" id="fileUploadBtn" style="margin-top:8px;">Upload</button>
+          </div>
+        </div>
+        <div id="fileModalClearOlder" style="margin-top:12px;display:none;">
+          <div class="button-row">
+            <label style="font-size:0.82rem;color:var(--green-800);">Clear all older than</label>
+            <input type="number" id="clearOlderHours" value="24" min="1" style="width:90px;"> hours
+            <button type="button" class="btn btn-secondary" id="clearOlderBtn">Clear</button>
+          </div>
+          <p class="muted-note" style="font-size:0.78rem;margin-top:4px;">This will permanently delete old files from the Archive.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

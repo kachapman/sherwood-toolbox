@@ -14,9 +14,11 @@ from flask import (Blueprint, jsonify, render_template, request, send_file)
 from werkzeug.utils import secure_filename
 
 from restoration_common import (PhotoReportPDF, get_company_by_id, load_companies,
-                                 find_logo, generate_output_filename)
+                                  find_logo, generate_output_filename)
 
+from ...config import Config
 from ...core.crm import fetch_job_info
+from ...core.hub import _load_web_limits
 
 bp = Blueprint("photo_report", __name__, template_folder="templates")
 
@@ -55,6 +57,31 @@ def generate():
               if f and os.path.splitext(f.filename)[1].lower() in IMAGE_EXTS]
     if not images:
         return jsonify({"error": "Select at least one image."}), 400
+
+    # Web limits enforcement (count + per file size) — use persisted values
+    if Config.WEB_MODE:
+        limits = _load_web_limits()
+        max_count = int(limits.get("photo_max_count", 10))
+        max_mb = int(limits.get("photo_max_mb_per_file", 10))
+        if len(images) > max_count:
+            return jsonify({"error": f"Maximum {max_count} photos on the web version."}), 400
+        for img in images:
+            try:
+                pos = img.stream.tell()
+                img.stream.seek(0, 2)
+                size = img.stream.tell()
+                img.stream.seek(pos)
+                if size > max_mb * 1024 * 1024:
+                    return jsonify({"error": f"Each photo must be {max_mb} MB or smaller on the web version."}), 400
+            except Exception:
+                # If we can't measure, let it through (server will still handle)
+                pass
+        # Rewind all streams so later saves work reliably
+        for img in images:
+            try:
+                img.stream.seek(0)
+            except Exception:
+                pass
 
     try:
         max_size_mb = float(form.get("max_size_mb") or 10)

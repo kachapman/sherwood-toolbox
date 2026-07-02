@@ -21,9 +21,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from toolbox.app import create_app  # noqa: E402
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("TOOLBOX_HOST", "127.0.0.1")
 PORT = int(os.environ.get("TOOLBOX_PORT", "8765"))
 APP_MARKER = "Sherwood Toolbox"
+CHECK_HOST = "127.0.0.1"
 WINDOW_TITLE = "Sherwood Toolbox"
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 900
@@ -34,12 +35,12 @@ WINDOW_MIN_HEIGHT = 700
 def _port_open(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.4)
-        return s.connect_ex((HOST, port)) == 0
+        return s.connect_ex((CHECK_HOST, port)) == 0
 
 
 def _is_our_app(port):
     try:
-        with urllib.request.urlopen("http://%s:%d/" % (HOST, port), timeout=1.5) as r:
+        with urllib.request.urlopen("http://%s:%d/" % (CHECK_HOST, port), timeout=1.5) as r:
             return APP_MARKER in r.read(4096).decode("utf-8", "ignore")
     except Exception:
         return False

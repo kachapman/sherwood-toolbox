@@ -19,6 +19,18 @@
       <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
     </div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
+
+    <div class="inline-row" style="margin-top:8px;">
+      <div class="field">
+        <label for="dealTitle">Deal title</label>
+        <input type="text" id="dealTitle" placeholder="Search open deals by title">
+      </div>
+      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Search</button>
+    </div>
+    <select id="dealResults" style="margin-top:6px;display:none;width:100%;"></select>
+    <button type="button" class="btn btn-secondary" id="dealLoadBtn" style="margin-top:6px;display:none;">Fetch Details</button>
+    <p class="panel-hint" style="margin-top:4px;">Select a result, then click Fetch Details to populate customer name (from title), Claim #, Address/Location, and CRM Job/ID.</p>
+
     {% include "_crm_credentials.html" %}
   </div>
 
@@ -209,5 +221,105 @@
   }
   window.generate = generate; window.recalc = recalc;
   recalc();
+
+  // Deal title search (concise, small dropdown, only title)
+  const dealBtn = $('dealSearchBtn');
+  const dealInput = $('dealTitle');
+  const dealSel = $('dealResults');
+  const dealLoadBtn = $('dealLoadBtn');
+  if (dealBtn && dealInput && dealSel) {
+    dealBtn.addEventListener('click', async () => {
+      const q = (dealInput.value || '').trim();
+      if (!q) return;
+      dealSel.style.display = 'none';
+      dealSel.innerHTML = '';
+      const msg = $('crmMsg');
+      msg.textContent = 'Searching...';
+      const fd = new FormData();
+      fd.append('title', q);
+      try {
+        const r = await fetch('{{ url_for("core.crm_deal_search") }}', { method: 'POST', body: fd });
+        const data = await r.json();
+        msg.textContent = '';
+        if (!data.ok || !data.deals || !data.deals.length) {
+          msg.textContent = data.error || 'No matches.';
+          return;
+        }
+        data.deals.forEach(d => {
+          const opt = document.createElement('option');
+          const did = (d.id != null ? String(d.id) : '');
+          opt.setAttribute('value', did);
+          opt.value = did;
+          opt.textContent = d.title;
+          dealSel.appendChild(opt);
+        });
+        dealSel.style.display = '';
+        // Pre-select first (or only) result so the title is visible in the closed control.
+        if (data.deals.length > 0) {
+          dealSel.selectedIndex = 0;
+          if (dealSel.options[0]) {
+            const firstVal = dealSel.options[0].getAttribute('value') || dealSel.options[0].value || '';
+            dealSel.value = firstVal;
+            dealSel.options[0].selected = true;
+          }
+        }
+        const chosenId = dealSel.value || (dealSel.options[0] ? (dealSel.options[0].getAttribute('value') || '') : '');
+        if (dealLoadBtn) {
+          dealLoadBtn.dataset.dealId = chosenId;
+          dealLoadBtn.style.display = (chosenId ? '' : 'none');
+        }
+      } catch (e) {
+        msg.textContent = 'CRM Offline';
+      }
+    });
+
+    if (dealLoadBtn) {
+      dealSel.addEventListener('change', () => {
+        dealLoadBtn.style.display = (dealSel && dealSel.value) ? '' : 'none';
+      });
+      dealLoadBtn.addEventListener('click', async () => {
+        // Robust id extraction (mirror Photo Report)
+        let id = dealSel.value;
+        if (!id && dealSel.selectedIndex >= 0 && dealSel.options[dealSel.selectedIndex]) {
+          id = dealSel.options[dealSel.selectedIndex].getAttribute('value') || dealSel.options[dealSel.selectedIndex].value;
+        }
+        if (!id && dealLoadBtn && dealLoadBtn.dataset && dealLoadBtn.dataset.dealId) {
+          id = dealLoadBtn.dataset.dealId;
+        }
+        id = (id || '').toString().trim();
+        if (!id) {
+          const msg = $('crmMsg');
+          msg.textContent = 'No deal selected (missing id).';
+          return;
+        }
+        const msg = $('crmMsg');
+        msg.textContent = 'Fetching...';
+        const fd = new FormData();
+        fd.append('id', id);
+        try {
+          const r = await fetch('{{ url_for("core.crm_deal_fetch") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok && data.info) {
+            const info = data.info;
+            if (info.customer_name) $('customer_name').value = info.customer_name;
+            if (info.claim_number) $('insurance_claim').value = info.claim_number;
+            if (info.job_id) $('job_number').value = info.job_id;
+            if (info.sales_rep) $('sales_rep').value = info.sales_rep;
+            if (info.street) $('street').value = info.street;
+            else if (info.job_location) $('street').value = info.street;
+            if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
+            msg.textContent = 'Fields filled from CRM.';
+          } else {
+            msg.textContent = data.error || 'CRM Offline';
+          }
+        } catch (e) {
+          msg.textContent = 'CRM Offline';
+        }
+        dealSel.style.display = 'none';
+        dealSel.innerHTML = '';
+        dealLoadBtn.style.display = 'none';
+      });
+    }
+  }
 </script>
 {% endblock %}

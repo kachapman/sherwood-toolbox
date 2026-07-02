@@ -30,27 +30,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from toolbox.app import create_app  # noqa: E402
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("TOOLBOX_HOST", "127.0.0.1")
 PORT = int(os.environ.get("TOOLBOX_PORT", "8765"))
 APP_MARKER = "Sherwood Toolbox"
+CHECK_HOST = "127.0.0.1"
+
+
+def _get_lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    return None
 
 
 def _port_open(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.4)
-        return s.connect_ex((HOST, port)) == 0
+        return s.connect_ex((CHECK_HOST, port)) == 0
 
 
 def _is_our_app(port):
     try:
-        with urllib.request.urlopen("http://%s:%d/" % (HOST, port), timeout=1.5) as r:
+        with urllib.request.urlopen("http://%s:%d/" % (CHECK_HOST, port), timeout=1.5) as r:
             return APP_MARKER in r.read(4096).decode("utf-8", "ignore")
     except Exception:
         return False
 
 
 def main():
-    url = "http://%s:%d/" % (HOST, PORT)
+    is_lan_bind = HOST in ("0.0.0.0", "::")
+    lan_ip = _get_lan_ip() if is_lan_bind else None
+    if is_lan_bind and lan_ip:
+        lan_url = "http://%s:%d/" % (lan_ip, PORT)
+        local_url = "http://127.0.0.1:%d/" % PORT
+        print("Sherwood Toolbox running at %s  (Ctrl+C to stop)" % local_url)
+        print("LAN URL (click from any device on your network): %s" % lan_url)
+        url = local_url
+    else:
+        url = "http://%s:%d/" % (HOST, PORT)
+        print("Sherwood Toolbox running at %s  (Ctrl+C to stop)" % url)
 
     if _port_open(PORT):
         if _is_our_app(PORT):
@@ -66,8 +90,8 @@ def main():
         sys.exit(1)
 
     app = create_app()
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    print("Sherwood Toolbox running at %s  (Ctrl+C to stop)" % url)
+    if not is_lan_bind:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 
     try:
         from waitress import serve

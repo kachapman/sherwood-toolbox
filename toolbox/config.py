@@ -28,6 +28,15 @@ class Config:
     SECRET_KEY = os.environ.get("TOOLBOX_SECRET_KEY", "dev-local-only")
     MAX_CONTENT_LENGTH = int(os.environ.get("TOOLBOX_MAX_UPLOAD_MB", "60")) * 1024 * 1024
 
+    # Web deployment mode (Docker / LAN test). Enables upload limits and other web-only behaviors.
+    WEB_MODE = _bool("TOOLBOX_WEB_MODE", False)
+
+    # Web-only limits (defaults for web deployment). Desktop ignores these.
+    WEB_PHOTO_MAX_COUNT = int(os.environ.get("WEB_PHOTO_MAX_COUNT", "10"))
+    WEB_PHOTO_MAX_MB_PER_FILE = int(os.environ.get("WEB_PHOTO_MAX_MB_PER_FILE", "10"))
+    WEB_ENHANCER_MAX_MB = int(os.environ.get("WEB_ENHANCER_MAX_MB", "15"))
+    WEB_ENHANCER_MAX_PHOTO_PAGES = int(os.environ.get("WEB_ENHANCER_MAX_PHOTO_PAGES", "50"))
+
     # Working directories. Default to a per-user data dir so the standalone app
     # writes nothing inside the source tree.
     DATA_DIR = _path("TOOLBOX_DATA_DIR", "~/.local/share/sherwood-toolbox")
@@ -38,6 +47,9 @@ class Config:
     # EstimateEnhancer "Add Image Links Fork" helper (wired in step 3).
     FORK_PATH = _path("TOOLBOX_FORK_PATH",
                       str(PKG_DIR / "tools" / "estimate_enhancer" / "fork" / "add_image_links.py"))
+
+    # Per-deployment timeout (seconds) for the image-link fork subprocess.
+    ENHANCER_FORK_TIMEOUT = int(os.environ.get("ENHANCER_FORK_TIMEOUT", "180"))
 
     @classmethod
     def ensure_dirs(cls):

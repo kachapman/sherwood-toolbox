@@ -16,6 +16,18 @@
       <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
     </div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
+
+    <div class="inline-row" style="margin-top:8px;">
+      <div class="field">
+        <label for="dealTitle">Deal title</label>
+        <input type="text" id="dealTitle" placeholder="Search open deals by title">
+      </div>
+      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Search</button>
+    </div>
+    <select id="dealResults" style="margin-top:6px;display:none;width:100%;"></select>
+    <button type="button" class="btn btn-secondary" id="dealLoadBtn" style="margin-top:6px;display:none;">Fetch Details</button>
+    <p class="panel-hint" style="margin-top:4px;">Select a result, then click Fetch Details to populate customer name (from title), Claim #, Address/Location, and CRM Job/ID.</p>
+
     {% include "_crm_credentials.html" %}
   </div>
 
@@ -59,20 +71,39 @@
   <div class="panel company-theme-surface">
     <h2>Photos</h2>
     <p class="panel-hint">Select the job photos to include. Images are resized and compressed to fit the size limit.</p>
+    {% if caps.web_mode and caps.web_limits %}
+    <p class="muted-note" style="margin-bottom:8px;">
+      Web limits: max {{ caps.web_limits.photo_max_count }} photos, {{ caps.web_limits.photo_max_mb_per_file }} MB per file.
+    </p>
+    {% endif %}
     <div class="form-grid">
       <div class="field full">
         <label for="photos">Photo files</label>
         <input type="file" id="photos" name="photos" accept="image/*" multiple>
         <p class="muted-note" id="photoCount" style="margin-top:6px;">No photos selected.</p>
+        <ul id="photoList" style="margin:4px 0 0;padding-left:16px;font-size:0.85rem;list-style:none;"></ul>
+        {% if caps.web_mode %}
+        <p class="muted-note" style="font-size:0.8rem;margin-top:4px;">Max 10 MB per photo on the web. Larger files are automatically resized and compressed (high detail).</p>
+        {% endif %}
       </div>
       <div class="field">
         <label for="max_size_mb">Max file size</label>
-        <div class="with-unit"><input type="number" id="max_size_mb" name="max_size_mb" value="10" step="0.5" min="0.5"><span class="unit">MB</span></div>
+        <div class="with-unit">
+          <input type="number" id="max_size_mb" name="max_size_mb" value="10" step="0.5" min="0.5"
+                 {% if caps.web_mode %}disabled{% endif %}>
+          <span class="unit">MB</span>
+        </div>
       </div>
     </div>
     <div class="button-row">
       <button type="submit" class="btn btn-primary company-tinted" id="genBtn">Generate Report PDF</button>
       <span class="muted-note" id="genMsg"></span>
+    </div>
+    <div id="photoProgressWrap" style="display:none;margin-top:8px;">
+      <div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden;">
+        <div id="photoProgress" style="height:6px;width:0;background:#16a34a;"></div>
+      </div>
+      <p id="photoProgressText" class="muted-note" style="font-size:0.8rem;margin-top:4px;"></p>
     </div>
   </div>
 </form>
@@ -84,11 +115,22 @@
     crm: "{{ url_for('photo_report.crm_fetch') }}",
     generate: "{{ url_for('photo_report.generate') }}",
   };
+  const IS_WEB = {% if caps.web_mode %}true{% else %}false{% endif %};
   function $(id) { return document.getElementById(id); }
 
-  $('photos').addEventListener('change', e => {
+  const photosEl = $('photos');
+  if (photosEl) photosEl.addEventListener('change', e => {
     const n = e.target.files.length;
     $('photoCount').textContent = n ? `${n} photo${n === 1 ? '' : 's'} selected.` : 'No photos selected.';
+    const list = $('photoList');
+    if (!list) return;
+    list.innerHTML = '';
+    for (let i = 0; i < e.target.files.length; i++) {
+      const li = document.createElement('li');
+      li.textContent = '⏳ ' + e.target.files[i].name;
+      li.dataset.idx = i;
+      list.appendChild(li);
+    }
   });
 
   const crmBtn = $('crmFetchBtn');
@@ -109,29 +151,261 @@
     } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
   });
 
-  $('prForm').addEventListener('submit', async (e) => {
+  async function compressForWeb(file, maxEdge = 3000, quality = 0.91) {
+    if (!IS_WEB || !file.type || !file.type.startsWith('image/')) return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      let {width, height} = bitmap;
+      const scale = Math.min(1, maxEdge / Math.max(width, height));
+      if (scale >= 0.999) return file; // already small enough, keep original bytes/quality
+      const w = Math.round(width * scale);
+      const h = Math.round(height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (!blob) return file;
+      return new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    } catch (e) {
+      return file; // fallback to original on any canvas error
+    }
+  }
+
+  const prForm = $('prForm');
+  if (prForm) prForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('genBtn'), msg = $('genMsg');
-    btn.disabled = true; msg.textContent = 'Generating...';
+    btn.disabled = true;
+    msg.textContent = IS_WEB ? 'Preparing photos...' : 'Generating...';
+
+    const progressWrap = $('photoProgressWrap');
+    const bar = $('photoProgress');
+    const txt = $('photoProgressText');
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (bar) bar.style.width = '0%';
+    if (txt) txt.textContent = IS_WEB ? 'Compressing and uploading...' : '';
+
+    const list = $('photoList');
+    const form = $('prForm');
+
     try {
-      const r = await fetch(PR.generate, { method: 'POST', body: new FormData($('prForm')) });
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/pdf')) {
-        const blob = await r.blob();
-        const cd = r.headers.get('content-disposition') || '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const name = m ? decodeURIComponent(m[1]) : 'photo_report.pdf';
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-        msg.textContent = 'Downloaded ' + name;
-      } else {
-        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
-        msg.textContent = data.error || 'Generation failed.';
+      let files = Array.from($('photos').files || []);
+      if (!files.length) throw new Error('Select at least one photo.');
+
+      // Compress on web (high detail: ~3000px @ 0.91)
+      let toSend = files;
+      if (IS_WEB) {
+        const compressed = [];
+        for (let i = 0; i < files.length; i++) {
+          const c = await compressForWeb(files[i]);
+          compressed.push(c);
+          if (list && list.children[i]) {
+            list.children[i].textContent = '⏳ ' + (c.name || files[i].name);
+          }
+        }
+        toSend = compressed;
       }
-    } catch (e) { msg.textContent = 'Error: ' + e.message; }
-    btn.disabled = false;
+
+      // Build payload (preserve all other form fields)
+      const fd = new FormData();
+      // copy non-file fields
+      for (const [k, v] of new FormData(form).entries()) {
+        if (k !== 'photos') fd.append(k, v);
+      }
+      for (const f of toSend) fd.append('photos', f);
+
+      // Use XHR for combined upload progress + verify
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', PR.generate);
+
+        xhr.upload.onprogress = function (ev) {
+          if (ev.lengthComputable && bar) {
+            const pct = Math.round((ev.loaded / ev.total) * 100);
+            bar.style.width = pct + '%';
+            if (txt) txt.textContent = `Uploading... ${pct}%`;
+          }
+        };
+
+        xhr.onload = function () {
+          if (bar) bar.style.width = '100%';
+          if (txt) txt.textContent = 'Photos received by server. Generating report...';
+
+          // mark all as received (checkmark)
+          if (list) {
+            Array.from(list.children).forEach(li => {
+              if (li.textContent.startsWith('⏳')) li.textContent = '✓ ' + li.textContent.slice(2);
+            });
+          }
+
+          const ct = xhr.getResponseHeader('content-type') || '';
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (ct.includes('application/pdf')) {
+              const blob = new Blob([xhr.response], { type: 'application/pdf' });
+              const cd = xhr.getResponseHeader('content-disposition') || '';
+              const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+              const name = m ? decodeURIComponent(m[1]) : 'photo_report.pdf';
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = name; document.body.appendChild(a); a.click();
+              document.body.removeChild(a); URL.revokeObjectURL(url);
+              msg.textContent = 'Downloaded ' + name;
+              resolve();
+            } else {
+              // try to parse json error
+              let errMsg = 'Generation failed.';
+              try {
+                const j = JSON.parse(xhr.responseText || '{}');
+                errMsg = j.error || errMsg;
+              } catch (_) {}
+              msg.textContent = errMsg;
+              reject(new Error(errMsg));
+            }
+          } else {
+            let errMsg = 'Generation failed.';
+            try {
+              const j = JSON.parse(xhr.responseText || '{}');
+              errMsg = j.error || errMsg;
+            } catch (_) {}
+            msg.textContent = errMsg;
+            reject(new Error(errMsg));
+          }
+        };
+
+        xhr.onerror = () => {
+          msg.textContent = 'Failed to fetch (network error).';
+          reject(new Error('Network error'));
+        };
+
+        xhr.onabort = () => { msg.textContent = 'Upload aborted.'; reject(new Error('Aborted')); };
+
+        // Important: for binary response
+        xhr.responseType = 'arraybuffer';
+        xhr.send(fd);
+      });
+    } catch (e) {
+      msg.textContent = 'Error: ' + (e && e.message ? e.message : 'Generation failed.');
+    } finally {
+      btn.disabled = false;
+      // hide progress after a short delay
+      setTimeout(() => {
+        if (progressWrap) progressWrap.style.display = 'none';
+        if (bar) bar.style.width = '0%';
+        if (txt) txt.textContent = '';
+      }, 1200);
+    }
   });
+
+  // Deal title search (concise, small dropdown, only title)
+  const dealBtn = $('dealSearchBtn');
+  const dealInput = $('dealTitle');
+  const dealSel = $('dealResults');
+  const dealLoadBtn = $('dealLoadBtn');
+  let currentDealId = '';
+  if (dealBtn && dealInput && dealSel) {
+    dealBtn.addEventListener('click', async () => {
+      const q = (dealInput.value || '').trim();
+      if (!q) return;
+      dealSel.style.display = 'none';
+      dealSel.innerHTML = '';
+      currentDealId = '';
+      const msg = $('crmMsg');
+      msg.textContent = 'Searching...';
+      const fd = new FormData();
+      fd.append('title', q);
+      try {
+        const r = await fetch('{{ url_for("core.crm_deal_search") }}', { method: 'POST', body: fd });
+        const data = await r.json();
+        msg.textContent = '';
+        if (!data.ok || !data.deals || !data.deals.length) {
+          msg.textContent = data.error || 'No matches.';
+          return;
+        }
+        data.deals.forEach(d => {
+          const opt = document.createElement('option');
+          const did = (d.id != null ? String(d.id) : '');
+          opt.setAttribute('value', did);
+          opt.value = did;
+          opt.textContent = d.title;
+          dealSel.appendChild(opt);
+        });
+        dealSel.style.display = '';
+        // Pre-select first result. The title will now be visible in the closed <select>.
+        // For 1 result this means the user sees the deal name without opening the pulldown.
+        if (data.deals.length > 0) {
+          dealSel.selectedIndex = 0;
+          const firstOpt = dealSel.options[0];
+          if (firstOpt) {
+            const v = firstOpt.getAttribute('value') || firstOpt.value || '';
+            dealSel.value = v;
+            firstOpt.selected = true;
+            currentDealId = v;
+          }
+        }
+        // Stamp on the button too (extra safety for the click handler)
+        if (dealLoadBtn) {
+          dealLoadBtn.dataset.dealId = currentDealId;
+          dealLoadBtn.style.display = (currentDealId ? '' : 'none');
+        }
+      } catch (e) {
+        msg.textContent = 'CRM Offline';
+      }
+    });
+
+    if (dealLoadBtn) {
+      function updateFromSelect() {
+        currentDealId = dealSel.value || '';
+        if (dealLoadBtn) dealLoadBtn.dataset.dealId = currentDealId;
+        dealLoadBtn.style.display = (currentDealId ? '' : 'none');
+      }
+      dealSel.addEventListener('change', updateFromSelect);
+      dealSel.addEventListener('input', updateFromSelect);
+      dealSel.addEventListener('click', () => setTimeout(updateFromSelect, 50));
+      dealLoadBtn.addEventListener('click', async () => {
+        // Ultra-defensive id grab: prefer stamped/closure, then selected, then ANY option that has a value.
+        let id = (dealLoadBtn && dealLoadBtn.dataset && dealLoadBtn.dataset.dealId) || currentDealId || dealSel.value || '';
+        if (!id && dealSel.selectedIndex >= 0 && dealSel.options[dealSel.selectedIndex]) {
+          const o = dealSel.options[dealSel.selectedIndex];
+          id = o.getAttribute('value') || o.value || '';
+        }
+        if (!id && dealSel.options && dealSel.options.length) {
+          for (let i = 0; i < dealSel.options.length; i++) {
+            const o = dealSel.options[i];
+            const v = o.getAttribute('value') || o.value;
+            if (v) { id = v; break; }
+          }
+        }
+        id = (id || '').toString().trim();
+        if (!id) {
+          const msg = $('crmMsg');
+          msg.textContent = 'No deal selected (missing id).';
+          return;
+        }
+        const msg = $('crmMsg');
+        msg.textContent = 'Fetching...';
+        const fd = new FormData();
+        fd.append('id', id);
+        try {
+          const r = await fetch('{{ url_for("core.crm_deal_fetch") }}', { method: 'POST', body: fd });
+          const data = await r.json();
+          if (data.ok && data.info) {
+            const info = data.info;
+            const map = { customer_name: 'customer_name', claim_number: 'claim_number',
+                          job_location: 'job_location', job_id: 'job_id' };
+            Object.keys(map).forEach(k => { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
+            msg.textContent = 'Fields filled from CRM.';
+          } else {
+            msg.textContent = data.error || 'CRM Offline';
+          }
+        } catch (e) {
+          msg.textContent = 'CRM Offline';
+        }
+        dealSel.style.display = 'none';
+        dealSel.innerHTML = '';
+        dealLoadBtn.style.display = 'none';
+      });
+    }
+  }
 </script>
 {% endblock %}
