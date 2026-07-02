@@ -240,7 +240,7 @@ fi
 echo "==> Building AppImage"
 cd "$REPO_ROOT"
 rm -f "$APPIMAGE_NAME"
-"$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_NAME" 2>/dev/null || \
+ARCH=x86_64 "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_NAME" 2>/dev/null || \
     ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_NAME"
 
 echo ""
