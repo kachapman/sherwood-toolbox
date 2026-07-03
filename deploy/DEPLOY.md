@@ -68,6 +68,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libsm6 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -137,7 +143,11 @@ server {
     ssl_certificate     /etc/letsencrypt/live/tools.sherwoodestimates.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/tools.sherwoodestimates.com/privkey.pem;
 
-    client_max_body_size 60m;
+    # MUST be high for Photo Report (many photos) and Estimate Enhancer (PDFs).
+    # Real deploy hit 413 "Content Too Large" with default/low values (often 1m).
+    # Set this >= the largest body you expect. The app still enforces its own limits.
+    # 100m is a safe practical value.
+    client_max_body_size 100m;
 
     location / {
         proxy_pass http://sherwood-toolbox:8777;

@@ -1,3 +1,6 @@
+# This is a ready-to-use docker-compose.yml for the droplet.
+# It removes the obsolete "version" key and includes safe defaults for the 1 GB droplet.
+
 services:
   sherwood-toolbox:
     build: .
@@ -9,14 +12,13 @@ services:
       - TOOLBOX_PORT=8777
       - TOOLBOX_DATA_DIR=/data
       - TOOLBOX_UPLOAD_DIR=/data/uploads
-      # - TOOLBOX_CRM_BASE_URL=https://office.publicadjustermidwest.com
+      - ENHANCER_FORK_TIMEOUT=120
+      - WEB_ENHANCER_MAX_PHOTO_PAGES=20
     ports:
-      # Publish when the reverse proxy is on the host (common after old stack shutdown).
-      # Remove this line if you only proxy via Docker network (sherwood-toolbox:8777).
       - "8777:8777"
     volumes:
-      - toolbox-data:/data
-      # Share CRM creds (optional). Use the correct container home (Dockerfile uses uid 1000 "toolbox").
+      - /opt/sherwood-toolbox/data:/data
+      # CRM (Option A - commented). Enter via Admin UI after bootstrap.
       # - /root/.config/photo_report_generator:/home/toolbox/.config/photo_report_generator:ro
     networks:
       - web
@@ -26,9 +28,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-
-volumes:
-  toolbox-data:
 
 networks:
   web:

@@ -121,6 +121,28 @@ agents working on the project.
 - Made configurable via `ENHANCER_FORK_TIMEOUT` (default 180) so different
   deployments can tune it.
 
+### AppImage builds but does not launch
+
+- **Symptom** (reported after v0.3.0): `./run/build-appimage.sh` (and the GitHub
+  Actions build on `v*` tags) completes successfully and produces
+  `Sherwood_Toolbox-<ver>-x86_64.AppImage`. After `chmod +x` and running it,
+  nothing happens or it fails to start the desktop shell.
+- The containerized web build and .deb paths were the focus of the v0.3.0 release;
+  the AppImage was not re-validated on target hardware immediately after the web
+  deployment round.
+- Common external causes for "build green, won't run":
+  - Missing runtime libs or FUSE on the target (especially Fedora 43 + AMD).
+  - The AppRun / desktop integration or pywebview GTK bits not matching the host.
+  - Architecture / glibc mismatch between the Ubuntu 22.04 CI runner and the
+    user's distro.
+- Workarounds historically used: `LIBGL_ALWAYS_SOFTWARE=1`, forcing X11,
+  ensuring `fuse` + `libfuse2` (or fuse3 equivalent) are present.
+- Recommendation: After any AppImage-producing change, download the artifact and
+  smoke-test launch on at least one target (ideally the Fedora/AMD case the
+  build script tries to support).
+
+See also `run/build-appimage.sh` and `.github/workflows/build-appimage.yml`.
+
 ## Deployment Notes (Droplet / Web)
 
 - Always mount a persistent volume for `TOOLBOX_DATA_DIR` (contains uploads,
@@ -132,6 +154,103 @@ agents working on the project.
   the first employee. After that, control it via Admin.
 - The new enhancer photo page limit and background job behavior are the main things
   that changed for web stability on small droplets.
+
+### nginx `client_max_body_size` too low (413 "Content Too Large")
+
+- **Symptom (real deploy)**: Estimate Enhancer "Server returned 413" on Analyze PDF.
+  Photo Report "Error: Generation failed." with 413 in the network tab, even with only
+  a few photos under the web limits.
+- **Cause**: nginx default (or previous site config) had a tiny `client_max_body_size`
+  (often 1m). The reverse proxy rejected the request body before it reached the app.
+  Photo Report sends all selected images in one POST. Enhancer sends the full PDF.
+- **Fix**: In the server block for the toolbox domain:
+  ```nginx
+  client_max_body_size 100m;   # or at least 60m
+  ```
+  The app still enforces its own limits (`WEB_ENHANCER_MAX_MB`, `WEB_PHOTO_MAX_*`,
+  global `MAX_CONTENT_LENGTH`).
+- **Lesson**: Always set an explicit high `client_max_body_size` for any domain
+  serving heavy upload tools. Do not rely on nginx defaults.
+
+### Shared host nginx + certbot / reloads broke other sites (e.g. dashboard cert)
+
+- **Symptom (real deploy)**: After the toolbox deploy, the active dashboard domain
+  (`dashboard.publicadjustermidwest.com`, previously `dashboard.vanguardadj.com`)
+  started returning the wrong certificate or 403, even though it "worked before".
+- **Causes**:
+  - Host systemd nginx is shared by multiple sites. The deploy performed repeated
+    `systemctl reload/start`, `certbot --nginx`, site file edits, and `pkill nginx`.
+    This left nginx in inconsistent states (stale `/run/nginx.pid`, "not active",
+    failed starts, wrong server block winning).
+  - DNS for the old dashboard name still pointed at a Cloudways IP returning a
+    `*.cloudwaysapps.com` certificate. Observers saw the "wrong cert".
+  - Old site symlinks (e.g. `dashboard.vanguardadj.com`) could still be enabled and
+    interfere.
+- **Fixes applied**:
+  - Re-wrote the exact site file for the *current* dashboard domain with its own
+    Let's Encrypt cert paths.
+  - Removed stale symlinks for old dashboard names.
+  - Hard-clean restart of host nginx:
+    ```bash
+    pkill -9 nginx || true
+    rm -f /run/nginx.pid /var/run/nginx.pid
+    systemctl restart nginx
+    ```
+  - Verified DNS for each public name actually points at the droplet IP.
+- **Lesson**: On a shared-host nginx (not just an isolated "web" docker network),
+  every nginx or certbot change is high-risk for other TLS sites. Treat it like
+  editing a global config. Test other domains after any change. Prefer per-domain
+  site files and explicit `server_name` matches.
+
+### Data directory ownership (uid 1000)
+
+- **Symptom**: Container could not write uploads / tokens / limits, or the dir was
+  inaccessible inside the container.
+- **Cause**: `mkdir /opt/sherwood-toolbox/data` (or similar) was done as the login
+  user (ubuntu/root). The Dockerfile creates a non-root user `toolbox` with uid 1000
+  and runs as that user. The bind mount inherited the wrong owner.
+- **Fix**:
+  ```bash
+  mkdir -p /opt/sherwood-toolbox/data
+  chown -R 1000:1000 /opt/sherwood-toolbox/data
+  ```
+- **Lesson**: Always `chown` bind-mount paths to the uid the container actually runs as
+  (see `useradd -m -u 1000 toolbox` + `USER 1000` in the Dockerfile).
+
+### Dockerfile from released tag was not web-ready
+
+- **Symptom**: On the first real droplet deploy using `git checkout v0.3.0`, the
+  container built but the app failed to start (missing flask, PyMuPDF/fitz, etc.).
+- **Causes**:
+  - `pip install --no-deps -e .` in the tag skipped all runtime dependencies.
+  - `python:3.11-slim` image lacked PyMuPDF runtime libraries (libgl1, libglib2.0-0,
+    libx11-6, libxext6, libxrender1, libsm6).
+- **Fixes applied on droplet**:
+  - Patched the checked-out Dockerfile:
+    - Changed to `pip install -e .` (no `--no-deps`).
+    - Added the missing apt packages.
+  - Rebuilt.
+- **Current state**: Main branch + Dockerfile in the repo now include the runtime
+  libs and do not use `--no-deps`. Tags may still be "desktop-first".
+- **Lesson**: Treat the first web deploy of a tag as a patching exercise. Verify
+  that `python -c "import flask, fitz, bs4, psutil, PIL, pypdf, reportlab, requests"`
+  succeeds inside the built image before going live.
+
+### Host nginx left in broken state multiple times
+
+- Symptom: "nginx.service is not active", "invalid PID number in /run/nginx.pid",
+  reloads doing nothing.
+- Cause: Mix of `systemctl reload`, `certbot --nginx`, manual `pkill`, and partial
+  starts during troubleshooting.
+- Reliable recovery:
+  ```bash
+  pkill -9 nginx || true
+  rm -f /run/nginx.pid /var/run/nginx.pid
+  systemctl restart nginx
+  ```
+- Lesson: On a machine where nginx is managed as a systemd service, prefer
+  `systemctl restart` + `nginx -t` after invasive changes. Avoid mixing certbot
+  and manual pkill without cleaning the pid file.
 
 ---
 
