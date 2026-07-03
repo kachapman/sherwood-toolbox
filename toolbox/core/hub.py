@@ -103,6 +103,8 @@ def _safe_path(base, name):
 @bp.route("/files")
 def files_list():
     key = request.args.get("dir", "")
+    if Config.WEB_MODE and not core_auth.is_employee(request):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
     base = _resolve_dir(key)
     if not base:
         return jsonify({"error": "Invalid dir"}), 400
@@ -124,6 +126,8 @@ def files_list():
 def files_delete():
     key = request.form.get("dir", "")
     name = request.form.get("name", "")
+    if Config.WEB_MODE and not core_auth.is_employee(request):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
     base = _resolve_dir(key)
     p = _safe_path(base, name)
     if not p or not p.exists():
@@ -137,6 +141,8 @@ def files_delete():
 @bp.route("/files/clear-older", methods=["POST"])
 def files_clear_older():
     key = request.form.get("dir", "")
+    if Config.WEB_MODE and not core_auth.is_employee(request):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
     try:
         hours = int(request.form.get("older_than_hours", "24"))
     except Exception:
@@ -163,6 +169,8 @@ def files_clear_older():
 @bp.route("/files/upload", methods=["POST"])
 def files_upload():
     key = request.args.get("dir", "") or request.form.get("dir", "")
+    if Config.WEB_MODE and not core_auth.is_employee(request):
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
     base = _resolve_dir(key)
     if not base or key != "code_docs":
         return jsonify({"ok": False, "error": "Uploads only allowed to Code Docs"}), 400

@@ -61,7 +61,13 @@
               fd.append("name", btn.getAttribute("data-name"));
               fetch("/files/delete", { method: "POST", body: fd })
                 .then(r => r.json())
-                .then(() => openFileModal(key))  // refresh
+                .then(res => {
+                  if (res && res.ok) {
+                    openFileModal(key);
+                  } else {
+                    alert((res && res.error) || "Delete failed.");
+                  }
+                })
                 .catch(() => alert("Delete failed."));
             });
           });
