@@ -144,9 +144,11 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/tools.sherwoodestimates.com/privkey.pem;
 
     # MUST be high for Photo Report (many photos) and Estimate Enhancer (PDFs).
-    # Real deploy hit 413 "Content Too Large" with default/low values (often 1m).
-    # Set this >= the largest body you expect. The app still enforces its own limits.
-    # 100m is a safe practical value.
+    # Real v0.3.0 droplet deploy produced 413 "Content Too Large" because the
+    # previous nginx config (or default) had a tiny client_max_body_size (often 1m).
+    # Set this >= the largest upload you intend to allow. The app still enforces
+    # its own web limits (WEB_*_MAX_* + global 60m cap).
+    # 100m is a safe practical value used in production.
     client_max_body_size 100m;
 
     location / {
@@ -170,6 +172,24 @@ server {
  3. Enter any string as the token → it becomes the first employee token (bootstrap).
  4. Log in, go to Admin, create additional tokens (employee/customer) and adjust web limits if needed.
  5. Give the plaintext token to the intended user. They use it once to log in; "Remember me" keeps them signed in.
+
+### Real deployment gotchas (v0.3.0 droplet)
+
+These were encountered during the first production web deployment:
+
+- **nginx `client_max_body_size` too low** — Caused 413 "Content Too Large" on Estimate Enhancer PDF upload and Photo Report generation even with small numbers of photos. Fix: set `client_max_body_size 100m;` (or at least 60m) in the server block. The app still enforces its own limits.
+- **Host nginx + certbot state** — On a machine using the system `nginx` service (not just a docker "web" network), repeated reloads, certbot runs, and site edits can leave nginx with stale PID files or the wrong server block active. Reliable recovery:
+  ```bash
+  pkill -9 nginx || true
+  rm -f /run/nginx.pid /var/run/nginx.pid
+  systemctl restart nginx
+  ```
+- **Dashboard / other site certs broke** — Because the deploy touched the shared host nginx and DNS for the old dashboard name (`dashboard.vanguardadj.com`) still pointed at a different IP returning a `*.cloudwaysapps.com` cert. Always verify DNS for every public name after changes. Re-assert the exact site file + cert paths for any other domain you care about.
+- **Data directory ownership** — The container runs as uid 1000 (`toolbox`). Bind-mount paths created as root/ubuntu will cause permission errors. Do `chown -R 1000:1000 /path/to/data`.
+- **Dockerfile from release tag** — `v0.3.0` tag used `pip install --no-deps` and a minimal slim image. Real deploy required patching to `pip install -e .` + adding PyMuPDF runtime libs (libgl1, libglib2.0-0, libx11-6, libxext6, libxrender1, libsm6).
+- **AppImage** — CI build can succeed but the resulting `.AppImage` may not start on the target machine (especially Fedora/AMD). Test launch of the artifact, not just that the build script finishes. Common mitigations: FUSE present, `LIBGL_ALWAYS_SOFTWARE=1`, forcing X11.
+
+Update other domains' nginx configs and re-test them after any toolbox web deployment.
 
 **Note:** The canonical public hostname for this deployment is `tools.sherwoodestimates.com`. The previous `enhancer.sherwoodestimates.com` is no longer used.
 
