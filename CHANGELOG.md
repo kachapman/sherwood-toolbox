@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-06
+
+### Fixed
+- CRM deal-fetch buttons (Fetch, Search) were disabled when CRM credentials were missing
+  (`not caps.crm_configured`). Changed to always enabled — error surfaces on click instead of
+  grayed-out button. Applied in both Documents and Photo Report tools.
+- Invoice `base_amount` field rejected formatted values like `$20,048.93` because it used
+  `type="number"`. Changed to `type="text"`; `recalc()` JS now strips non-numeric chars
+  before parsing. Server-side `_money()` already handled these symbols.
+- Deal-load address copy-paste bug: `info.street` was written instead of `info.job_location`
+  in the fallback branch (`documents.html:309`).
+- Password input fields on admin screen (`toolbox.css`) were smaller than text inputs due to
+  missing `input[type="password"]` in the shared input selector.
+- `dealSearchBtn` not re-enabled after saving CRM credentials via the modal
+  (`crm_credentials.js`).
+- Missing `sales_rep` extraction from CRM API custom fields + embedded fields + raw fallback
+  in `hub.py:crm_deal_fetch`.
+- Dead unreachable code (second API scrape attempt at end of `crm_deal_fetch`) removed.
+
 ## [0.3.0] - 2026-07-02
 
 ### Added
@@ -88,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bundled `restoration_common` for PDF generation and CRM features.
 - Local-only operation (uploads go to `~/.local/share/sherwood-toolbox/`).
 
-[Unreleased]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kachapman/sherwood-toolbox/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kachapman/sherwood-toolbox/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kachapman/sherwood-toolbox/releases/tag/v0.1.0

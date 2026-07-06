@@ -13,7 +13,7 @@
         <label for="crmUrl">CRM job URL</label>
         <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline }}>Fetch</button>
     </div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
 
@@ -22,7 +22,7 @@
         <label for="dealTitle">Deal title</label>
         <input type="text" id="dealTitle" placeholder="Search open deals by title">
       </div>
-      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Search</button>
+      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline }}>Search</button>
     </div>
     <select id="dealResults" style="margin-top:6px;display:none;width:100%;"></select>
     <button type="button" class="btn btn-secondary" id="dealLoadBtn" style="margin-top:6px;display:none;">Fetch Details</button>

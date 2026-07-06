@@ -475,6 +475,8 @@ def crm_deal_fetch():
                         info.setdefault("job_location", val)
                     if "crm job" in label or "job/id" in label or "job id" in label or "job#" in label:
                         info.setdefault("job_id", val)
+                    if "sales rep" in label or "contractor sales rep" in label:
+                        info.setdefault("sales_rep", val)
                 except Exception:
                     continue
     except Exception:
@@ -493,6 +495,8 @@ def crm_deal_fetch():
                 info.setdefault("job_location", val)
             if "crm job" in label or "job/id" in label or "job id" in label or "job#" in label:
                 info.setdefault("job_id", val)
+            if "sales rep" in label or "contractor sales rep" in label:
+                info.setdefault("sales_rep", val)
         except Exception:
             continue
 
@@ -512,6 +516,11 @@ def crm_deal_fetch():
             if raw.get(k):
                 info["job_id"] = str(raw.get(k)).strip()
                 break
+    if not info.get("sales_rep"):
+        for k in ("sales_rep", "salesRep", "contractor_sales_rep"):
+            if raw.get(k):
+                info["sales_rep"] = str(raw.get(k)).strip()
+                break
 
     # 5) Parse address like the manual URL path
     if info.get("job_location"):
@@ -528,15 +537,6 @@ def crm_deal_fetch():
         return jsonify({"ok": True, "info": info})
 
     # 6) Last resort: scrape Deals.aspx (best effort)
-    try:
-        url = f"{base}/Products/CRM/Deals.aspx?id={deal_id}"
-        from ..core.crm import fetch_job_info
-        res = fetch_job_info(url)
-        return jsonify(res)
-    except Exception:
-        return jsonify({"ok": False, "error": "CRM Offline"}), 503
-
-    # Fallback to scraping the Deals.aspx page (best effort)
     try:
         url = f"{base}/Products/CRM/Deals.aspx?id={deal_id}"
         from ..core.crm import fetch_job_info

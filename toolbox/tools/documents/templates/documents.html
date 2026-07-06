@@ -16,7 +16,7 @@
         <label for="crmUrl">CRM job URL</label>
         <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline }}>Fetch</button>
     </div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
 
@@ -25,7 +25,7 @@
         <label for="dealTitle">Deal title</label>
         <input type="text" id="dealTitle" placeholder="Search open deals by title">
       </div>
-      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Search</button>
+      <button type="button" class="btn btn-secondary" id="dealSearchBtn" {{ 'disabled' if caps.offline }}>Search</button>
     </div>
     <select id="dealResults" style="margin-top:6px;display:none;width:100%;"></select>
     <button type="button" class="btn btn-secondary" id="dealLoadBtn" style="margin-top:6px;display:none;">Fetch Details</button>
@@ -92,7 +92,7 @@
       </div>
       <div class="field">
         <label for="base_amount">Base charge amount</label>
-        <div class="with-unit"><input type="number" id="base_amount" name="base_amount" step="0.01" placeholder="0.00" oninput="recalc()"><span class="unit">USD</span></div>
+        <div class="with-unit"><input type="text" id="base_amount" name="base_amount" placeholder="0.00" oninput="recalc()"><span class="unit">USD</span></div>
       </div>
     </div>
 
@@ -157,7 +157,7 @@
     }));
   }
   function recalc() {
-    let total = parseFloat($('base_amount').value) || 0;
+    let total = parseFloat(($('base_amount').value || '').replace(/[^0-9.-]/g, '')) || 0;
     if ($('include_itel').checked) total += 199.80;
     if ($('include_nts').checked) total += 150.00;
     lineRows().forEach(r => { total += parseFloat(r.amount) || 0; });
@@ -306,7 +306,7 @@
             if (info.job_id) $('job_number').value = info.job_id;
             if (info.sales_rep) $('sales_rep').value = info.sales_rep;
             if (info.street) $('street').value = info.street;
-            else if (info.job_location) $('street').value = info.street;
+            else if (info.job_location) $('street').value = info.job_location;
             if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
             msg.textContent = 'Fields filled from CRM.';
           } else {

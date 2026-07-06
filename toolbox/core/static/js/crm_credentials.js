@@ -23,6 +23,8 @@
       if (box) box.style.display = "none";
       var fetchBtn = document.getElementById("crmFetchBtn");
       if (fetchBtn) fetchBtn.disabled = false;
+      var dealBtn = document.getElementById("dealSearchBtn");
+      if (dealBtn) dealBtn.disabled = false;
     } catch (e) {
       msg.textContent = "Error: " + e.message;
       btn.disabled = false;
