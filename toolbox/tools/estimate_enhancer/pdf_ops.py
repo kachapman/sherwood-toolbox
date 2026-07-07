@@ -453,8 +453,6 @@ def remove_taken_by_text(page):
     bg_color = get_page_background_color(page)
     patterns = [
         r"taken\s+by[:\s]+[^\n]*", r"photo\s+by[:\s]+[^\n]*", r"image\s+by[:\s]+[^\n]*",
-        r"photographer[:\s]+[^\n]*", r"captured\s+by[:\s]+[^\n]*", r"shot\s+by[:\s]+[^\n]*",
-        r"credit[:\s]+[^\n]*", r"source[:\s]+[^\n]*",
     ]
     text = page.get_text()
     removed_count = 0

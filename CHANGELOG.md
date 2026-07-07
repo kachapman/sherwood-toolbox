@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-06
+
+### Fixed
+- Estimate Enhancer `remove_taken_by_text()` ran on ALL pages with overly broad regex
+  patterns (`credit[:\s]`, `source[:\s]`, etc.), causing false-positive matches on estimate
+  text that drew overlay rectangles and visually deleted content. Fixed by:
+  - Passing `estimate_end_page` from the caller (`routes.py`) to the fork via
+    `ESTIMATE_END_PAGE` env var; only photo pages (index >= estimate_end_page) are now
+    processed for metadata removal.
+  - Narrowed regex patterns to only `taken\s+by`, `photo\s+by`, `image\s+by` — the actual
+    Xactimate photo metadata headers. Removed `photographer[:\s]`, `captured\s+by`,
+    `shot\s+by`, `credit[:\s]`, `source[:\s]`.
+  - Both `add_image_links.py` and `pdf_ops.py` updated in sync.
+
 ## [0.3.1] - 2026-07-06
 
 ### Fixed
@@ -107,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bundled `restoration_common` for PDF generation and CRM features.
 - Local-only operation (uploads go to `~/.local/share/sherwood-toolbox/`).
 
-[Unreleased]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/kachapman/sherwood-toolbox/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kachapman/sherwood-toolbox/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kachapman/sherwood-toolbox/compare/v0.1.0...v0.2.0

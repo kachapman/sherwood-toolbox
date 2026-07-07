@@ -954,15 +954,13 @@ def remove_taken_by_text(page) -> int:
     bg_color = get_page_background_color(page)
     
     # Search patterns for "Taken By" variations
+    # Narrowed to only metadata patterns that appear on Xactimate photo pages;
+    # removed overly broad patterns (credit, source, etc.) that false-positive
+    # on estimate text.
     patterns = [
         r"taken\s+by[:\s]+[^\n]*",  # "Taken By: Name"
         r"photo\s+by[:\s]+[^\n]*",   # "Photo By: Name"
         r"image\s+by[:\s]+[^\n]*",   # "Image By: Name"
-        r"photographer[:\s]+[^\n]*", # "Photographer: Name"
-        r"captured\s+by[:\s]+[^\n]*",# "Captured By: Name"
-        r"shot\s+by[:\s]+[^\n]*",    # "Shot By: Name"
-        r"credit[:\s]+[^\n]*",       # "Credit: Name"
-        r"source[:\s]+[^\n]*",       # "Source: Name"
     ]
     
     text = page.get_text()
@@ -1161,16 +1159,17 @@ def main(input_path: pathlib.Path, output_path: pathlib.Path, add_highlights: bo
     else:
         print(f"   Found {len(image_names)} references: {', '.join(list(image_names)[:3])}...")
 
-    # 2. Remove "Taken By:" metadata text
-    print("\n🧹 Removing metadata text...")
+    # 2. Remove "Taken By:" metadata text (photo pages only)
+    estimate_end_page = os.environ.get('ESTIMATE_END_PAGE')
+    photo_start = int(estimate_end_page) if estimate_end_page else len(doc)
+    print(f"\n🧹 Removing metadata text (photo pages index >= {photo_start})...")
     total_removed = 0
-    for page_num in range(len(doc)):
+    for page_num in range(photo_start, len(doc)):
         page = doc.load_page(page_num)
         removed = remove_taken_by_text(page)
         if removed > 0:
             total_removed += removed
             print(f"   Removed {removed} metadata text instance(s) on page {page_num + 1}")
-            # Redaction is applied in remove_taken_by_text().
     if total_removed > 0:
         print(f"   Total: {total_removed} metadata text instance(s) removed")
 

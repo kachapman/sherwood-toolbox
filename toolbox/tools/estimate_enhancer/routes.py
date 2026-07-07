@@ -105,10 +105,12 @@ def build_image_link_payload(filename, links_to_add):
     return link_map, payload
 
 
-def process_with_fork(input_pdf, output_pdf, fork_highlight_rules=None):
+def process_with_fork(input_pdf, output_pdf, fork_highlight_rules=None, estimate_end_page=None):
     """Run the bundled add_image_links fork as a subprocess. Returns (ok, stdout, stderr)."""
     fork_env = os.environ.copy()
     fork_env['PDF_HIGHLIGHT_RULES_JSON'] = json.dumps(fork_highlight_rules or [])
+    if estimate_end_page is not None:
+        fork_env['ESTIMATE_END_PAGE'] = str(estimate_end_page)
     fork_path = str(Config.FORK_PATH)
     if not os.path.exists(fork_path):
         print(f"Fork helper missing at {fork_path}")
@@ -293,7 +295,7 @@ def _run_enhance(filename):
         fork_rules = pdf_ops.build_fork_highlight_rules(highlight_configs)
         _write_stage(paths, 'Linking image references...')
         _psutil_rss(paths, 'before fork', photo_page_count)
-        ok, out, err = process_with_fork(filepath, output_pdf, fork_rules)
+        ok, out, err = process_with_fork(filepath, output_pdf, fork_rules, estimate_end_page)
         if out:
             _append_log(paths, out)
         if err:
