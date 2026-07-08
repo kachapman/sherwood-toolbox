@@ -29,6 +29,15 @@
    same size as the first row, separated by a rule. */
 .rec-totals-2 { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 
+/* Plain-language narrative: the quick read, above the statistical tiles. */
+.rec-narrative { border-left: 4px solid var(--green-800); }
+.rec-narr { font-size: 1.02rem; line-height: 1.55; color: var(--ink); margin: 0 0 10px; }
+.rec-narr:last-child { margin-bottom: 0; }
+.rec-narr-caution {
+  background: #f6efd9; border-left: 4px solid #b8912b; color: #6d5a1d;
+  padding: 10px 14px; border-radius: 0 8px 8px 0; font-weight: 500;
+}
+
 /* Loading */
 .loading { text-align: center; padding: 28px; }
 .spinner-border {

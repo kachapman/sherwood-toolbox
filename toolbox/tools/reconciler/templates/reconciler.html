@@ -38,6 +38,8 @@
 
   <div id="results" style="display:none;">
 
+    <div class="panel rec-narrative" id="narrativePanel" style="display:none;"></div>
+
     <div class="panel rec-summary">
       <div class="rec-headline">
         <span class="rec-recoverable-label" id="headLabel">Estimated recoverable</span>
@@ -111,6 +113,20 @@
     $('st' + slot).textContent = num;
     $('st' + slot + 'Lbl').textContent = label;
     $('st' + slot + 'Sub').textContent = sub || '';
+  }
+
+  function renderNarrative(data) {
+    const box = $('narrativePanel');
+    box.innerHTML = '';
+    const items = data.narrative || [];
+    if (!items.length) { box.style.display = 'none'; return; }
+    items.forEach(s => {
+      const p = document.createElement('p');
+      p.className = 'rec-narr' + (s.tone === 'caution' ? ' rec-narr-caution' : '');
+      p.textContent = s.text;
+      box.appendChild(p);
+    });
+    box.style.display = '';
   }
 
   function alertBox(kind, text) {
@@ -201,6 +217,7 @@
       const data = await resp.json();
       if (data.error) { alert(data.error); return; }
 
+      renderNarrative(data);
       if (data.mode === 'effectiveness' && data.effectiveness) renderEffectiveness(data);
       else renderRecoverable(data);
 

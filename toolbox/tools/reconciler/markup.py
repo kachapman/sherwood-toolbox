@@ -535,43 +535,42 @@ def _totals3(c, labels, values):
     c.row(values, [third] * 3, font="hebo", size=12, color=GREEN)
 
 
-def _sublimit_caution(c, recon):
-    """A prominent amber caution when a coverage sublimit may cap further gains."""
-    h = next((x for x in recon.hypotheses if x.theme == "COVERAGE_LIMIT"), None)
-    if not h:
-        return
-    body = (f"{_money(h.dollars)} of your outstanding scope is on a structure a coverage "
-            f"sublimit caps separately. Getting more approved there may not raise the "
-            f"payout, and can lower the net returned to the homeowner. See the "
-            f'"Coverage sublimit" hypothesis at the back before pursuing it.')
+def _narrative_block(c, recon):
+    """Lead the summary with the plain-language narrative: normal sentences in
+    readable body text, the caution sentence set off in an amber callout."""
+    for s in recon.narrative:
+        if s.get("tone") == "caution":
+            _caution_para(c, s["text"])
+        else:
+            c.text(s["text"], size=10.5, color=INK, gap=8)
+    c.y += 2
+
+
+def _caution_para(c, text):
     inner = PAGE_W - 2 * MARGIN - 24
-    lines = c._wrapped_lines(body, "helv", 9, inner)
-    box_h = 20 + lines * 11 + 8
+    lines = c._wrapped_lines(text, "helv", 9.5, inner)
+    box_h = 18 + lines * 12 + 8
     c.space(box_h + 6)
     top = c.y
     c.page.draw_rect(fitz.Rect(MARGIN, top, PAGE_W - MARGIN, top + box_h),
                      color=None, fill=WARN_BG, fill_opacity=1.0)
     c.page.draw_line(fitz.Point(MARGIN, top), fitz.Point(MARGIN, top + box_h),
                      color=WARN, width=3)
-    c.page.insert_text(fitz.Point(MARGIN + 12, top + 14), f"CAUTION - {h.label.upper()}",
-                       fontname="hebo", fontsize=8.5, color=WARN)
-    c.y = top + 20
-    c.text(body, size=9, x=MARGIN + 12, width=inner, color=INK, gap=0)
-    c.y = top + box_h + 10
+    c.page.insert_text(fitz.Point(MARGIN + 12, top + 13), "HEADS UP", fontname="hebo",
+                       fontsize=8, color=WARN)
+    c.y = top + 18
+    c.text(text, size=9.5, x=MARGIN + 12, width=inner, color=INK, gap=0)
+    c.y = top + box_h + 8
 
 
 def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_count,
                            won_count):
     c.heading(f"Approval effectiveness - {recon.claimant}", size=17)
-    c.text("How much of your supplement the carrier has approved so far. Approved "
-           "items are checked in blue on the carrier pages; outstanding scope is "
-           "painted in green where it belongs.", size=9.5, color=MUTED, gap=10)
+    _narrative_block(c, recon)
 
     pct = f"{recon.effectiveness * 100:.0f}%"
     _headline_box(c, "APPROVAL EFFECTIVENESS", pct,
                   f"of your {_money(recon.ask_dollars)} supplement approved so far")
-
-    _sublimit_caution(c, recon)
 
     _totals3(c, ["Won to date (original -> current)", "Still outstanding",
                  "Your supplement (ask)"],
@@ -600,9 +599,7 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
 
 def _summary_recoverable(c, recon, flagged, missing, located_count, painted_count):
     c.heading(f"Reconciliation summary - {recon.claimant}", size=17)
-    c.text("Carrier estimate marked up against the contractor scope. Details are "
-           "flagged in place on the following pages and listed at the back.",
-           size=9.5, color=MUTED, gap=10)
+    _narrative_block(c, recon)
     _headline_box(c, "ESTIMATED RECOVERABLE", _money(recon.est_recoverable), "")
     _totals3(c, ["Carrier RCV", "Contractor RCV", "RCV gap"],
              [_money(recon.carrier_grand), _money(recon.contractor_grand),

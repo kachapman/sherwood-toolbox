@@ -191,6 +191,7 @@ def run():
         payload = {
             "claimant": recon.claimant,
             "mode": recon.mode,
+            "narrative": recon.narrative,
             "gap": round(recon.contractor_grand - recon.carrier_grand, 2),
             "est_recoverable": recon.est_recoverable,
             "carrier": _side(carrier),

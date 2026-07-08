@@ -107,6 +107,7 @@ class Recon:
     outstanding_dollars: float = 0.0  # supplement still not in the current carrier
     effectiveness: float = 0.0        # approved / ask, by grand-total dollars
     approved_wins: list = field(default_factory=list)  # current-carrier LineItems new vs OG
+    narrative: list = field(default_factory=list)  # plain-language summary [{text, tone}]
 
 
 # --------------------------------------------------------------------------- #
@@ -331,6 +332,67 @@ def coverage_limit_hypothesis(carrier, contractor, missing, og=None):
 
 
 # --------------------------------------------------------------------------- #
+# Plain-language summary
+# --------------------------------------------------------------------------- #
+
+def build_narrative(recon):
+    """Set recon.narrative: two or three plain sentences a reader can take in at a
+    glance, with the coverage-sublimit warning called out. Deterministic (no model
+    call); qualitative words are picked from the numbers. The statistical tiles
+    stay below it for anyone verifying the math."""
+    out = []
+    clh = next((h for h in recon.hypotheses if h.theme == "COVERAGE_LIMIT"), None)
+
+    if recon.mode == "effectiveness":
+        pct = round(recon.effectiveness * 100)
+        if pct >= 80:
+            prog = "nearly all of it"
+        elif pct >= 50:
+            prog = "most of it"
+        elif pct >= 25:
+            prog = "part of it"
+        elif pct >= 5:
+            prog = "only a small share"
+        else:
+            prog = "almost none of it"
+        won = len(recon.approved_wins)
+        out_count = sum(1 for s in recon.suggestions if s.status == "MISSING")
+        out.append({"tone": "normal", "text":
+            f"You supplemented {_money0(recon.ask_dollars)} of scope onto the carrier's "
+            f"original estimate. The carrier has approved {_money0(recon.approved_dollars)} "
+            f"so far ({prog}, {pct}%), and {_money0(recon.outstanding_dollars)} is still on "
+            f"the table."})
+        out.append({"tone": "normal", "text":
+            f"{won} of your added items are now in the carrier's estimate; {out_count} are "
+            f"still outstanding and painted in green on the pages that follow."})
+        if clh:
+            out.append({"tone": "caution", "text":
+                f"Before chasing the rest: {_money0(clh.dollars)} of what's outstanding is on "
+                f"a secondary structure the carrier caps under a separate coverage limit that "
+                f"looks maxed out. Getting more approved there may add nothing to the payout, "
+                f"and can move that structure to actual cash value and lower the homeowner's "
+                f"check. Confirm that limit before pursuing it."})
+    else:
+        gap = round(recon.contractor_grand - recon.carrier_grand, 2)
+        miss = [s for s in recon.suggestions if s.status == "MISSING"]
+        miss_d = round(sum(s.dollars for s in miss), 2)
+        flagged = sum(1 for s in recon.shared if s.quantity_delta > 1e-6)
+        out.append({"tone": "normal", "text":
+            f"Your estimate totals {_money0(recon.contractor_grand)}; the carrier's totals "
+            f"{_money0(recon.carrier_grand)}, a gap of {_money0(gap)}."})
+        out.append({"tone": "normal", "text":
+            f"{len(miss)} line items worth {_money0(miss_d)} are in your scope but missing "
+            f"from the carrier's, painted in green on the carrier pages. {flagged} shared "
+            f"lines are measured higher by the contractor."})
+        if clh:
+            out.append({"tone": "caution", "text":
+                f"Watch a secondary structure: {_money0(clh.dollars)} of the missing scope "
+                f"sits on a structure the carrier caps under a separate coverage limit, so "
+                f"more approvals there may not pay. Confirm the limit before pursuing it."})
+    recon.narrative = out
+
+
+# --------------------------------------------------------------------------- #
 # Reconciled mode
 # --------------------------------------------------------------------------- #
 
@@ -408,6 +470,7 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
     cn = _confidence_note(carrier)
     if cn:
         r.notes.append(cn)
+    build_narrative(r)
     return r
 
 
@@ -457,6 +520,7 @@ def reconcile_effectiveness(og, carrier, contractor, claimant, playbook=None):
     r.notes.insert(0, "effectiveness is measured from grand totals (reliable to "
                       "the cent); the per-item lists use line matching and may not "
                       "sum to those totals exactly.")
+    build_narrative(r)   # rebuild with the effectiveness numbers and sublimit signal
     return r
 
 
@@ -528,4 +592,5 @@ def reconcile_playbook(carrier, claimant, playbook, min_fraction=0.35):
     cn = _confidence_note(carrier)
     if cn:
         r.notes.append(cn)
+    build_narrative(r)
     return r
