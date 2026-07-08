@@ -85,23 +85,25 @@ def _claimant_from(contractor_name, carrier_name):
     return base
 
 
-def _scan_warning(carrier, contractor):
-    """One caveat covering any image-only input, or None."""
-    parts = []
-    for est, label in ((carrier, "carrier"), (contractor, "contractor")):
-        if not est.image_only:
-            continue
-        if est.ocr:
-            parts.append(
-                f"The {label} estimate is an image-only scan; its figures were "
-                f"recovered by OCR and are approximate. Re-export it as a text PDF "
-                f"for an exact reconciliation.")
-        else:
-            parts.append(
-                f"The {label} estimate is an image-only scan and Tesseract OCR is "
-                f"not installed, so no line items could be read from it. Install "
-                f"Tesseract or provide a text-based PDF.")
-    return " ".join(parts) if parts else None
+def _image_only_error(og, carrier, contractor):
+    """A blocking message when any provided file has no readable text layer. OCR
+    is mothballed, so a scanned / image-only PDF cannot be processed; the user
+    needs a text-based (digitally exported) PDF."""
+    labels = []
+    if carrier is not None and carrier.image_only:
+        labels.append("current carrier estimate")
+    if contractor is not None and contractor.image_only:
+        labels.append("contractor supplement")
+    if og is not None and og.image_only:
+        labels.append("original carrier estimate")
+    if not labels:
+        return None
+    which = labels[0] if len(labels) == 1 else \
+        ", ".join(labels[:-1]) + " and " + labels[-1]
+    return (f"No readable text found in the {which}. The reconciler needs "
+            f"text-based (digitally exported) PDFs; a scanned or image-only PDF "
+            f"cannot be read. Re-export or print the estimate to a PDF from the "
+            f"estimating software, then try again.")
 
 
 def _swap_hint(carrier, contractor):
@@ -157,11 +159,17 @@ def run():
         cleanup_file(og_path)
         contractor_path = og_path = None
 
+        # No readable text layer in a provided file: OCR is mothballed, so warn
+        # the user plainly instead of returning a meaningless reconciliation.
+        img_err = _image_only_error(og, carrier, contractor)
+        if img_err:
+            return jsonify({"error": img_err}), 422
+
         if not carrier.items and carrier.grand_rcv == 0 and \
                 not contractor.items and contractor.grand_rcv == 0:
             return jsonify({"error": "Could not read line items or totals from "
-                                     "either PDF. They may be image-only scans "
-                                     "without OCR, or an unsupported format."}), 422
+                                     "either PDF. They may be an unsupported "
+                                     "format or not estimate documents."}), 422
 
         claimant = _claimant_from(contractor.name, carrier.name)
         if og is not None:
@@ -178,7 +186,6 @@ def run():
         cleanup_file(carrier_path)
         carrier_path = None
 
-        scanned_warning = _scan_warning(carrier, contractor)
         swap_hint = _swap_hint(carrier, contractor)
 
         # Log the found data instead of returning it for on-screen tables. Never
@@ -188,7 +195,7 @@ def run():
             log_paths = logbook.log_reconciliation(
                 recon, _log_dir(), markup_stats=stats,
                 sides={"carrier": _side(carrier), "contractor": _side(contractor)},
-                warnings=[scanned_warning, swap_hint])
+                warnings=[swap_hint])
         except Exception as log_err:
             print(f"Reconciler log write failed (continuing): {log_err}")
             log_paths = {}
@@ -211,7 +218,6 @@ def run():
                 "added_pages": stats.get("added_pages", 0),
             },
             "notes": recon.notes,
-            "scanned_warning": scanned_warning,
             "swap_hint": swap_hint,
             "markup_download": url_for("reconciler.download_file", name=markup_name),
             "log_path": log_paths.get("md", ""),

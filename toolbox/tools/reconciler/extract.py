@@ -765,14 +765,16 @@ def extract_estimate(path: str, role: str) -> Estimate:
     ocr = False
     image_only = False
     if len(re.sub(r"\s+", "", text)) < 40:
-        # No usable native text layer: an image-only scan. OCR it when Tesseract
-        # is present; otherwise leave the text empty so the caller can report the
-        # degrade message rather than crash.
+        # No usable native text layer: an image-only scan. OCR is mothballed for
+        # now (too heavy for the current shared server hardware); the file is
+        # flagged image_only and the caller warns the user it cannot be processed.
+        # Re-enable by uncommenting the OCR call below once the hardware improves;
+        # the _ocr() logic and its env knobs are kept intact.
         image_only = True
-        ocr_text = _ocr(path)
-        if ocr_text.strip():
-            text = ocr_text
-            ocr = True
+        # ocr_text = _ocr(path)
+        # if ocr_text.strip():
+        #     text = ocr_text
+        #     ocr = True
 
     items, fmt = parse_items(text)
     has_op, overhead, profit = detect_op(text)
