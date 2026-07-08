@@ -89,5 +89,38 @@
 .rec-up { color: #8a4b18; font-weight: 600; }
 .rec-down { color: #2e6b34; font-weight: 600; }
 
+/* Carrier coverage statements (verbatim quotes) */
+.rec-stmt-kind {
+  font-size: 0.8rem; font-weight: 700; color: var(--green-900);
+  margin: 12px 0 6px;
+}
+.rec-stmt-kind:first-child { margin-top: 0; }
+.rec-stmt-more { font-size: 0.8rem; color: var(--muted); font-style: italic; margin: 4px 0 0; }
+.rec-quote {
+  margin: 0 0 8px; padding: 8px 12px;
+  border-left: 3px solid var(--green-500); background: var(--sage-50);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.86rem; line-height: 1.45; color: var(--ink);
+}
+
+/* Denial hypotheses */
+.rec-hyp {
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 10px; background: #fff;
+}
+.rec-hyp:last-child { margin-bottom: 0; }
+.rec-hyp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.rec-hyp-title { font-weight: 700; color: var(--green-900); }
+.rec-hyp-dollars { margin-left: auto; font-weight: 700; color: var(--green-800); }
+.rec-hyp-note { font-size: 0.88rem; color: var(--ink); margin: 0 0 8px; line-height: 1.45; }
+.rec-hyp-items { font-size: 0.8rem; color: var(--muted); margin: 8px 0 0; }
+.rec-hyp .rec-quote { margin-bottom: 0; }
+.rec-badge {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+}
+.rec-badge-quoted { background: var(--green-800); color: #fff; }
+.rec-badge-infer { background: #f6efd9; color: #6d5a1d; border: 1px solid #d8d1bf; }
+
 /* Downloads */
 .rec-downloads .btn { margin-right: 10px; }

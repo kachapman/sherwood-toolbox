@@ -108,6 +108,24 @@ def infer_category(desc: str) -> str:
     return "OTHER"
 
 
+# Themes tie a missing line item to a likely denial reason. An item can carry
+# more than one theme. MATCHING items are the ones a "matching" exclusion tends
+# to cut; CODE items are the ones an ordinance/code position tends to cut.
+THEME_KEYWORDS = [
+    ("MATCHING", ["siding", "house wrap", "housewrap", "soffit", "fascia",
+                  "brick", "stone veneer", "veneer", "corner post", "shutter",
+                  "wrap (air", "match"]),
+    ("CODE", ["ice & water", "ice and water", "i&w", "drip edge", "sheathing",
+              "decking", "plywood", "osb", "valley metal", "step flashing",
+              "underlayment", "synthetic"]),
+]
+
+
+def infer_themes(desc: str) -> list:
+    d = desc.lower()
+    return [theme for theme, keys in THEME_KEYWORDS if any(k in d for k in keys)]
+
+
 # --------------------------------------------------------------------------- #
 # Token helpers
 # --------------------------------------------------------------------------- #
@@ -441,6 +459,75 @@ def parse_recap(text: str):
 
 
 # --------------------------------------------------------------------------- #
+# Carrier coverage statements (verbatim rationale the estimate prints)
+# --------------------------------------------------------------------------- #
+
+# Each pattern is deliberately narrow: a coverage limitation only, not routine
+# boilerplate. Kinds: MATCHING (the matching exclusion), DEPRECIATION_ACV (roof
+# settled at actual cash value / a depreciation schedule), ORDINANCE_CODE
+# (ordinance-or-law / code-upgrade language), POLICY_EXCLUSION (a Section-N
+# exclusions block). These are quoted, never paraphrased.
+STATEMENT_PATTERNS = [
+    ("MATCHING", re.compile(
+        r"matching.*(exclusion|excluded|does not cover|undamaged|not covered|"
+        r"not damaged)|(exclusion|excluded|undamaged).*matching", re.I)),
+    ("DEPRECIATION_ACV", re.compile(
+        r"actual cash value only|non-?recoverable depreciation|"
+        r"loss settlement selection form|roof schedule", re.I)),
+    ("ORDINANCE_CODE", re.compile(
+        r"ordinance or law|\bordinance\b|code upgrade|building code|"
+        r"bring.{0,12}up to code", re.I)),
+    ("POLICY_EXCLUSION", re.compile(
+        r"coverage exclusions|we do not insure for loss|"
+        r"the following exclusions apply", re.I)),
+]
+
+
+def _is_prose(line: str) -> bool:
+    """A narrative sentence, not a line-item row, header, or numeric column."""
+    s = line.strip()
+    if not s or MONEY.search(s):
+        return False
+    if HEADER_XACT.match(line) or HEADER_SYMB.match(line):
+        return False
+    return sum(c.isalpha() for c in s) >= 12
+
+
+def extract_statements(text: str) -> list:
+    """Quotes of the coverage limitations the estimate states, each tagged with a
+    kind. Captures the matching prose line plus continuation lines so a sentence
+    reads whole, then skips past the consumed lines so a repetitive paragraph
+    yields one clean quote rather than several overlapping fragments. Deduped.
+    Returns [{'kind': str, 'text': str}]."""
+    lines = text.splitlines()
+    n = len(lines)
+    out, seen = [], set()
+    i = 0
+    while i < n:
+        ln = lines[i]
+        if not _is_prose(ln):
+            i += 1
+            continue
+        hit = next((kind for kind, rx in STATEMENT_PATTERNS if rx.search(ln)), None)
+        if not hit:
+            i += 1
+            continue
+        parts = [ln.strip()]
+        j = i + 1
+        while (j < n and j <= i + 3 and _is_prose(lines[j])
+               and not parts[-1].rstrip().endswith((".", ":", ")"))):
+            parts.append(lines[j].strip())
+            j += 1
+        quote = re.sub(r"\s{2,}", " ", " ".join(parts)).strip()
+        key = (hit, quote[:80].lower())
+        if key not in seen:
+            seen.add(key)
+            out.append({"kind": hit, "text": quote})
+        i = j          # skip consumed lines; no overlapping re-capture
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # Text extraction (native + OCR), both via PyMuPDF
 # --------------------------------------------------------------------------- #
 
@@ -566,6 +653,7 @@ class Estimate:
     parse_ratio: float = 1.0       # parsed line RCV / grand RCV
     confidence: str = "high"       # 'high' | 'medium' | 'low'
     image_only: bool = False       # native text layer was empty (a scan)
+    statements: list = field(default_factory=list)  # quoted coverage limitations
 
     def to_dict(self):
         d = asdict(self)
@@ -613,6 +701,7 @@ def extract_estimate(path: str, role: str) -> Estimate:
         parse_ratio=ratio,
         confidence=conf,
         image_only=image_only,
+        statements=extract_statements(text),
     )
 
 

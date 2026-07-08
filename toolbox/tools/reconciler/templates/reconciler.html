@@ -53,6 +53,18 @@
 
     <div id="alerts"></div>
 
+    <div class="panel" id="hypothesesPanel" style="display:none;">
+      <p class="panel-label">Denial hypotheses <span class="panel-count" id="hypCount"></span></p>
+      <p class="muted-note">Why scope may be missing. A green <strong>Quoted exclusion</strong> badge is backed by the carrier's own words; an amber <strong>Inference</strong> badge is a guess to verify with the carrier.</p>
+      <div id="hypothesesBody"></div>
+    </div>
+
+    <div class="panel" id="statementsPanel" style="display:none;">
+      <p class="panel-label">Carrier coverage statements</p>
+      <p class="muted-note">Quoted verbatim from the carrier estimate.</p>
+      <div id="statementsBody"></div>
+    </div>
+
     <div class="panel">
       <p class="panel-label">Missing line items <span class="panel-count" id="missingCount"></span></p>
       <p class="muted-note">In the contractor scope, absent from the carrier estimate. Grouped by category, largest RCV first. RCV is the value printed in the contractor estimate.</p>
@@ -120,6 +132,55 @@
     if (cls) td.className = cls;
     td.textContent = text;
     return td;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  const STMT_LABELS = {
+    MATCHING: 'Matching exclusion',
+    DEPRECIATION_ACV: 'Depreciation / actual cash value',
+    ORDINANCE_CODE: 'Ordinance or law / code',
+    POLICY_EXCLUSION: 'Policy exclusions',
+  };
+  const THEME_TITLES = { MATCHING: 'Matching', CODE: 'Code / ordinance', UNEXPLAINED: 'No stated reason' };
+
+  function buildStatements(statements) {
+    const panel = $('statementsPanel'), body = $('statementsBody');
+    body.innerHTML = '';
+    if (!statements || !statements.length) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    const byKind = {};
+    statements.forEach(s => { (byKind[s.kind] = byKind[s.kind] || []).push(s.text); });
+    Object.keys(byKind).forEach(kind => {
+      body.appendChild(el('p', 'rec-stmt-kind', STMT_LABELS[kind] || kind));
+      byKind[kind].slice(0, 5).forEach(t => body.appendChild(el('blockquote', 'rec-quote', t)));
+      if (byKind[kind].length > 5) body.appendChild(el('p', 'rec-stmt-more', '+' + (byKind[kind].length - 5) + ' more'));
+    });
+  }
+
+  function buildHypotheses(hyps) {
+    const panel = $('hypothesesPanel'), body = $('hypothesesBody');
+    body.innerHTML = '';
+    if (!hyps || !hyps.length) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    $('hypCount').textContent = '(' + hyps.length + ')';
+    hyps.forEach(h => {
+      const card = el('div', 'rec-hyp');
+      const head = el('div', 'rec-hyp-head');
+      head.appendChild(el('span', 'rec-badge ' + (h.basis === 'quoted' ? 'rec-badge-quoted' : 'rec-badge-infer'), h.label));
+      head.appendChild(el('span', 'rec-hyp-title', THEME_TITLES[h.theme] || h.theme));
+      head.appendChild(el('span', 'rec-hyp-dollars', money(h.dollars)));
+      card.appendChild(head);
+      card.appendChild(el('p', 'rec-hyp-note', h.note));
+      if (h.statement) card.appendChild(el('blockquote', 'rec-quote', h.statement));
+      const nums = (h.item_numbers || []).map(n => '#' + n).join(', ');
+      card.appendChild(el('p', 'rec-hyp-items', 'Contractor line items: ' + nums));
+      body.appendChild(card);
+    });
   }
 
   function alertBox(kind, text) {
@@ -261,6 +322,8 @@
 
       buildMissing(data.missing || []);
       buildShared(data.shared || []);
+      buildHypotheses(data.denial_hypotheses || []);
+      buildStatements(data.carrier_statements || []);
       buildAlerts(data);
       wireDownload($('dlMd'), data.downloads.md);
       wireDownload($('dlCsv'), data.downloads.csv);

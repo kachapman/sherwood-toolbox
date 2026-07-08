@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .extract import infer_themes
 from .match import match_line_items
 
 
@@ -95,6 +96,8 @@ class Recon:
     bridge: dict = field(default_factory=dict)
     est_recoverable: float = 0.0
     notes: list = field(default_factory=list)
+    carrier_statements: list = field(default_factory=list)
+    hypotheses: list = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -139,6 +142,89 @@ def rcv_bridge(carrier, contractor, matched, missing, carrier_only):
         "residual": residual,
         "total_gap": round(contractor.grand_rcv - carrier.grand_rcv, 2),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Denial hypotheses
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class DenialHypothesis:
+    """A possible reason a cluster of missing items was left out. `basis` is
+    'quoted' only when the carrier estimate states a matching exclusion; every
+    other row is 'inference' and is labeled for the reviewer to verify. Never an
+    asserted carrier reason without a quote to back it."""
+    theme: str                 # MATCHING | CODE | UNEXPLAINED
+    basis: str                 # 'quoted' | 'inference'
+    label: str                 # display label for the basis
+    statement: str             # verbatim carrier quote backing it, or ""
+    item_numbers: list         # contractor line numbers
+    item_descriptions: list
+    dollars: float
+    note: str
+
+
+# Which carrier-statement kind would explain a given missing-item theme.
+_THEME_STATEMENT = {"MATCHING": "MATCHING", "CODE": "ORDINANCE_CODE"}
+
+
+def derive_hypotheses(carrier_statements, missing):
+    """Map missing-item themes to a quoted exclusion, or to a labeled inference.
+
+    Data-driven so it cannot fabricate: a theme's hypothesis is emitted only when
+    items of that theme are actually missing, so a reason is never asserted for
+    scope the carrier included. Items in no theme fall into one 'no stated reason'
+    bucket rather than getting an invented explanation.
+    """
+    kinds = {s["kind"] for s in carrier_statements}
+    quote_for = {}
+    for s in carrier_statements:
+        quote_for.setdefault(s["kind"], s["text"])
+
+    buckets = {"MATCHING": [], "CODE": []}
+    themed = set()
+    for it in missing:
+        for th in infer_themes(it.description):
+            if th in buckets:
+                buckets[th].append(it)
+                themed.add(id(it))
+
+    out = []
+    for theme, items in buckets.items():
+        if not items:
+            continue
+        quoted = _THEME_STATEMENT[theme] in kinds
+        if theme == "MATCHING":
+            note = ("The carrier's matching exclusion likely explains these omitted "
+                    "siding/soffit/fascia items." if quoted else
+                    "Possible matching dispute; no matching exclusion is quoted in "
+                    "the estimate. Verify with the carrier.")
+        else:  # CODE
+            note = ("The carrier's ordinance/code language likely explains these "
+                    "omitted code-upgrade items." if quoted else
+                    "Code/ordinance-typical items; no ordinance or code coverage "
+                    "language was found in the estimate. Confirm code coverage with "
+                    "the carrier.")
+        out.append(DenialHypothesis(
+            theme=theme, basis="quoted" if quoted else "inference",
+            label="Quoted exclusion" if quoted else "Inference - verify",
+            statement=quote_for.get(_THEME_STATEMENT[theme], "") if quoted else "",
+            item_numbers=[i.number for i in items],
+            item_descriptions=[i.description for i in items],
+            dollars=round(sum(i.rcv for i in items), 2), note=note))
+
+    rest = [it for it in missing if id(it) not in themed]
+    if rest:
+        out.append(DenialHypothesis(
+            theme="UNEXPLAINED", basis="inference", label="No stated reason",
+            statement="",
+            item_numbers=[i.number for i in rest],
+            item_descriptions=[i.description for i in rest],
+            dollars=round(sum(i.rcv for i in rest), 2),
+            note="No coverage limitation in the estimate explains these omissions. "
+                 "Follow up with the carrier."))
+    out.sort(key=lambda h: (h.basis != "quoted", -h.dollars))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -196,13 +282,16 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
     # (the bridge gap), which already nets out items the carrier alone carries.
     est = round(max(0.0, bridge["total_gap"]), 2)
 
+    hypotheses = derive_hypotheses(carrier.statements, missing)
+
     r = Recon(
         claimant=claimant, mode="reconciled", carrier_name=carrier.name,
         carrier_grand=carrier.grand_rcv, carrier_conf=carrier.confidence,
         carrier_ocr=carrier.ocr, contractor_name=contractor.name,
         contractor_grand=contractor.grand_rcv, contractor_conf=contractor.confidence,
         carrier_has_op=carrier.has_op, contractor_has_op=contractor.has_op,
-        suggestions=sugg, shared=shared, bridge=bridge, est_recoverable=est)
+        suggestions=sugg, shared=shared, bridge=bridge, est_recoverable=est,
+        carrier_statements=carrier.statements, hypotheses=hypotheses)
 
     if carrier.items and not matched:
         r.notes.append("cross-platform pair (carrier and contractor use different "

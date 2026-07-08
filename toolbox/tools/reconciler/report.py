@@ -97,6 +97,58 @@ def _shared_table(recon):
     return "\n".join(out)
 
 
+_STATEMENT_LABELS = {
+    "MATCHING": "Matching exclusion",
+    "DEPRECIATION_ACV": "Depreciation / actual cash value",
+    "ORDINANCE_CODE": "Ordinance or law / code",
+    "POLICY_EXCLUSION": "Policy exclusions",
+}
+_THEME_TITLES = {"MATCHING": "Matching", "CODE": "Code / ordinance",
+                 "UNEXPLAINED": "No stated reason"}
+
+
+def _statements_md(recon):
+    if not recon.carrier_statements:
+        return ""
+    out = ["## Carrier coverage statements",
+           "_Quoted verbatim from the carrier estimate._", ""]
+    by_kind = {}
+    for s in recon.carrier_statements:
+        by_kind.setdefault(s["kind"], []).append(s["text"])
+    for kind, texts in by_kind.items():
+        out.append(f"**{_STATEMENT_LABELS.get(kind, kind)}**")
+        out.append("")
+        for t in texts[:5]:
+            out.append(f"> {t}")
+            out.append(">")
+        if len(texts) > 5:
+            out.append(f"> _(+{len(texts) - 5} more)_")
+        out.append("")
+    return "\n".join(out)
+
+
+def _hypotheses_md(recon):
+    if not recon.hypotheses:
+        return ""
+    out = ["## Denial hypotheses",
+           "_Why scope may be missing. \"Quoted exclusion\" is backed by the "
+           "carrier's own words; \"Inference\" is a guess to verify with the "
+           "carrier._", ""]
+    for h in recon.hypotheses:
+        title = _THEME_TITLES.get(h.theme, h.theme)
+        nums = ", ".join(f"#{n}" for n in h.item_numbers)
+        out.append(f"### {title} - {h.label} ({_money(h.dollars)})")
+        out.append("")
+        out.append(h.note)
+        out.append("")
+        if h.statement:
+            out.append(f"> {h.statement}")
+            out.append("")
+        out.append(f"Contractor line items: {nums}")
+        out.append("")
+    return "\n".join(out)
+
+
 def render_markdown(recon):
     gap = round(recon.contractor_grand - recon.carrier_grand, 2)
     L = [f"# Reconciliation: {recon.claimant}", ""]
@@ -112,6 +164,13 @@ def render_markdown(recon):
     for n in recon.notes:
         L.append(f"> Note: {n}")
         L.append("")
+
+    stmts = _statements_md(recon)
+    if stmts:
+        L.append(stmts)
+    hyp = _hypotheses_md(recon)
+    if hyp:
+        L.append(hyp)
 
     L.append("## Missing line items")
     L.append("_In the contractor scope, absent from the carrier estimate._")

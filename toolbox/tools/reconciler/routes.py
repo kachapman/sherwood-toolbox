@@ -169,6 +169,8 @@ def run():
             "est_recoverable": recon.est_recoverable,
             "missing": missing,
             "shared": [asdict(s) for s in recon.shared],
+            "carrier_statements": recon.carrier_statements,
+            "denial_hypotheses": [asdict(h) for h in recon.hypotheses],
             "notes": recon.notes,
             "carrier": _side(carrier),
             "contractor": _side(contractor),

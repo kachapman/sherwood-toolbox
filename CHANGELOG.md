@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Estimate Reconciler** tool: upload a carrier estimate and a contractor Xactimate estimate for the same claim. The tool lists the line items the carrier omits (grouped by category, largest RCV first), breaks down the shared items by quantity and price, flags whether Overhead & Profit is applied on each estimate, and reports the RCV gap, with downloadable `.md`/`.csv` reports. The engine (parse, match, reconcile, report) is ported from the standalone reconciler.
+- Reconciler surfaces the carrier's stated coverage limitations, quoted verbatim from the estimate (matching exclusion, ACV/depreciation schedule, policy exclusions), plus labeled "denial hypotheses" that tie clusters of missing items to a quoted exclusion (badged "Quoted exclusion") or, absent a quote, mark them as an inference to verify (badged "Inference"). A themed hypothesis is emitted only when items of that theme are actually missing, so the tool never asserts a reason for scope the carrier included.
 - Tesseract OCR support as an **optional** dependency for image-only (scanned) estimates. When Tesseract is absent, the Reconciler shows a clear message and continues without crashing.
 
 ### Changed
