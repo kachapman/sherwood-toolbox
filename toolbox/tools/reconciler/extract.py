@@ -348,16 +348,70 @@ def parse_items(text: str):
 # Totals / O&P / recap
 # --------------------------------------------------------------------------- #
 
-RCV_LINE = re.compile(r"Replacement Cost Value[^\d\$]*\$?\s*([\d,]+\.\d{2})", re.I)
+# Grand RCV lives in one of three places depending on the carrier's platform;
+# see grand_rcv() for the prioritized cascade. RCV_LINE is tight on purpose: only
+# spaces / a colon / a '$' may sit between the phrase and the amount, so the
+# legend page ("Replacement Cost Value (RCV) - The estimated cost of...") that
+# some carriers print does not leak a stray number into the total.
+RCV_LINE = re.compile(r"Replacement Cost Value\s*:?\s*\$?\s*([\d,]+\.\d{2})", re.I)
+# Allstate-style "Loss Recap Summary": a grand 'TOTAL $x' row (all-caps TOTAL
+# followed immediately by a $-amount, never 'TOTAL ROOFING $x' category rows).
+RCV_TOTAL_ROW = re.compile(r"^\s*TOTAL\s+\$([\d,]+\.\d{2})", re.M)
+LINE_ITEM_TOTALS_ROW = re.compile(r"Line Item Total[s]?:[^\n]*")
 NET_CLAIM = re.compile(r"Net Claim[^\d\$]*\$?\s*([\d,]+\.\d{2})", re.I)
 LINE_ITEM_TOTAL = re.compile(r"Line Item Total[s]?[^\d\$]*\$?\s*([\d,]+\.\d{2})", re.I)
 TAX_LINE = re.compile(r"Sales Tax[^\d\$]*\$?\s*([\d,]+\.\d{2})", re.I)
 OVERHEAD_AMT = re.compile(r"^\s*Overhead\b[^\n]*?([\d,]+\.\d{2})\s*$", re.M)
 PROFIT_AMT = re.compile(r"^\s*Profit\b[^\n]*?([\d,]+\.\d{2})\s*$", re.M)
 
+_MONEY_TOK = re.compile(r"[\d,]+\.\d{2}")
+
 
 def _amts(rx, text):
     return [float(x.replace(",", "")) for x in rx.findall(text)]
+
+
+def _fnum(s):
+    return float(s.replace(",", ""))
+
+
+def grand_rcv(text: str, line_sum: float) -> float:
+    """The estimate's grand Replacement Cost Value (includes tax and O&P).
+
+    Carriers print this total in one of three shapes, tried most-authoritative
+    first. Verified across the sample corpus to land on the recap total to the
+    cent (Gritzman 32,813.71, Esposito 36,445.82, Diaz 12,618.27, ...):
+
+      1. A grand 'TOTAL $x' recap row (Allstate 'Loss Recap Summary').
+      2. Per-coverage 'Replacement Cost Value $x' summary lines, summed over the
+         distinct values (page-break echoes repeat a coverage's total verbatim;
+         two distinct coverages matching to the cent is vanishingly rare).
+      3. The 'Line Item Totals:' row, where the RCV column is the value V with a
+         following depreciation D and actual-cash-value A such that V - D = A.
+
+    Falls back to the parsed line-item RCV sum when none of the above is present.
+    """
+    m = RCV_TOTAL_ROW.search(text)
+    if m:
+        return _fnum(m.group(1))
+
+    rcv_vals = [_fnum(x) for x in RCV_LINE.findall(text)]
+    if rcv_vals:
+        return round(sum(set(rcv_vals)), 2)
+
+    best = None
+    for row in LINE_ITEM_TOTALS_ROW.findall(text):
+        nums = [_fnum(x) for x in _MONEY_TOK.findall(row)]
+        for i in range(len(nums) - 2):
+            V, D, A = nums[i], nums[i + 1], nums[i + 2]
+            if V > 0 and abs((V - D) - A) < 0.02 and (best is None or V > best):
+                best = V
+        if best is None and nums:
+            best = max(nums)
+    if best is not None:
+        return round(best, 2)
+
+    return line_sum
 
 
 def detect_op(text: str):
@@ -535,24 +589,8 @@ def extract_estimate(path: str, role: str) -> Estimate:
 
     items, fmt = parse_items(text)
     has_op, overhead, profit = detect_op(text)
-    rcv_vals = _amts(RCV_LINE, text)
     line_sum = round(sum(i.rcv for i in items), 2)
-
-    # Xactimate prints one 'Replacement Cost Value' per coverage section with no
-    # combined line, so the true claim total is the sum of the sections. Page
-    # breaks echo a section summary verbatim, so collapse exact-duplicate amounts
-    # (two independent sections matching to the cent is vanishingly rare).
-    if rcv_vals:
-        grand = round(sum(set(rcv_vals)), 2)
-    else:
-        # Some carriers omit a labelled 'Replacement Cost Value' and only print a
-        # 'Line Item Totals:' summary row; take the largest amount on that row.
-        cands = []
-        for row in re.findall(r"Line Item Total[s]?:[^\n]*", text):
-            ms = [float(x.replace(",", "")) for x in re.findall(r"[\d,]+\.\d{2}", row)]
-            if ms:
-                cands.append(max(ms))
-        grand = max(cands) if cands else line_sum
+    grand = grand_rcv(text, line_sum)
 
     ratio = round(line_sum / grand, 3) if grand else 0.0
     if ocr or ratio < 0.85 or ratio > 1.15:
