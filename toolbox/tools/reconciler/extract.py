@@ -639,23 +639,51 @@ def _tessdata_dir():
     return td or os.environ.get("TESSDATA_PREFIX") or None
 
 
+# OCR of an image-only PDF is by far the heaviest path (full-page rasterisation
+# at DPI, then Tesseract): ~2.5 s and tens of MB per page at 300 DPI. On shared
+# server hardware behind a proxy timeout that can dominate a request, so these
+# env knobs bound it. Defaults preserve the local desktop behaviour.
+#   TOOLBOX_RECONCILER_OCR=0            disable OCR (image-only PDFs then degrade
+#                                       to the "re-export as a text PDF" message)
+#   TOOLBOX_RECONCILER_OCR_DPI=150      lower render DPI (quarter the pixels, work,
+#                                       and memory of 300; still legible for OCR)
+#   TOOLBOX_RECONCILER_OCR_MAX_PAGES=8  cap the pages OCR'd per file
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int((os.environ.get(name) or "").strip() or default)
+    except ValueError:
+        return default
+
+
+def _ocr_enabled() -> bool:
+    return (os.environ.get("TOOLBOX_RECONCILER_OCR", "1").strip().lower()
+            not in ("0", "false", "no", "off"))
+
+
 def _tesseract_available() -> bool:
-    """True when Tesseract and its language data are both reachable. Tesseract is
-    an optional dependency; absent it, image-only PDFs yield empty text."""
-    return _tessdata_dir() is not None
+    """True when OCR is enabled and Tesseract with its language data is reachable.
+    Tesseract is an optional dependency; absent it, image-only PDFs yield empty
+    text."""
+    return _ocr_enabled() and _tessdata_dir() is not None
 
 
 def _ocr(path: str) -> str:
-    """OCR an image-only PDF with PyMuPDF's built-in Tesseract bridge. Returns
-    empty when Tesseract is unavailable or OCR fails."""
+    """OCR an image-only PDF with PyMuPDF's built-in Tesseract bridge, bounded by
+    the env knobs above. Returns empty when OCR is disabled/unavailable or fails."""
+    if not _ocr_enabled():
+        return ""
     td = _tessdata_dir()
     if not td:
         return ""
+    dpi = _env_int("TOOLBOX_RECONCILER_OCR_DPI", 300)
+    max_pages = _env_int("TOOLBOX_RECONCILER_OCR_MAX_PAGES", 0)   # 0 = all pages
     parts = []
     try:
         with fitz.open(path) as doc:
-            for page in doc:
-                tp = page.get_textpage_ocr(full=True, dpi=300, tessdata=td)
+            for i, page in enumerate(doc):
+                if max_pages and i >= max_pages:
+                    break
+                tp = page.get_textpage_ocr(full=True, dpi=dpi, tessdata=td)
                 parts.append(page.get_text(textpage=tp))
     except Exception:
         return ""

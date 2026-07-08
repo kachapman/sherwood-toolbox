@@ -161,8 +161,14 @@ def locate_items(doc, wanted):
     a recap row or page number that merely starts with the same integer). The
     first match wins; line numbers are unique per estimate. Returns
     {line_number: (page_index, fitz.Rect)}.
+
+    Stops once every wanted item is located, so trailing pages (photos, addenda)
+    on a long carrier are never word-clustered: line items sit near the front, so
+    this skips most of the work on big files.
     """
     found = {}
+    if not wanted:
+        return found
     for pno in range(len(doc)):
         rows = _cluster_rows(doc.load_page(pno))
         for row in rows:
@@ -176,6 +182,8 @@ def locate_items(doc, wanted):
             if kw and kw not in row["text"].lower():
                 continue
             found[num] = (pno, fitz.Rect(row["x0"], row["y0"], row["x1"], row["y1"]))
+        if len(found) == len(wanted):
+            break
     return found
 
 

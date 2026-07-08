@@ -181,11 +181,17 @@ def run():
         scanned_warning = _scan_warning(carrier, contractor)
         swap_hint = _swap_hint(carrier, contractor)
 
-        # Log the found data instead of returning it for on-screen tables.
-        log_paths = logbook.log_reconciliation(
-            recon, _log_dir(), markup_stats=stats,
-            sides={"carrier": _side(carrier), "contractor": _side(contractor)},
-            warnings=[scanned_warning, swap_hint])
+        # Log the found data instead of returning it for on-screen tables. Never
+        # fatal: on a container the log dir may be read-only, and a missing log
+        # must not fail the reconciliation the user is waiting on.
+        try:
+            log_paths = logbook.log_reconciliation(
+                recon, _log_dir(), markup_stats=stats,
+                sides={"carrier": _side(carrier), "contractor": _side(contractor)},
+                warnings=[scanned_warning, swap_hint])
+        except Exception as log_err:
+            print(f"Reconciler log write failed (continuing): {log_err}")
+            log_paths = {}
 
         n_missing = sum(1 for s in recon.suggestions if s.status == "MISSING")
         payload = {
@@ -208,7 +214,7 @@ def run():
             "scanned_warning": scanned_warning,
             "swap_hint": swap_hint,
             "markup_download": url_for("reconciler.download_file", name=markup_name),
-            "log_path": log_paths["md"],
+            "log_path": log_paths.get("md", ""),
         }
         if recon.mode == "effectiveness":
             payload["effectiveness"] = {

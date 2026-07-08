@@ -134,6 +134,24 @@ buttons show an alert with those paths instead.
 - `toolbox/core/static/img/app_icon.png` — Toolbox icon for the OS dock/app grid.
 - `toolbox/core/static/img/mark.svg` — Favicon.
 
+### Reconciler on the shared web server
+The Estimate Reconciler runs as one of the containerized apps on the shared
+droplet behind nginx (50 MB `client_max_body_size`, 120 s `proxy_read_timeout`).
+Text PDFs and the markup are vector-only and sub-second; the marked-up PDF never
+rasterizes. The one heavy path is OCR of image-only (scanned) PDFs: full-page
+rasterization plus Tesseract, roughly 2.5 s and tens of MB per page at 300 DPI,
+which on shared hardware can approach the proxy timeout and spike memory. Bound
+it with env vars, read at request time so they take effect per container:
+- `TOOLBOX_RECONCILER_OCR=0` — disable OCR; image-only PDFs then show the
+  "re-export as a text PDF" message instead of tying up a worker. Recommended
+  when Tesseract is not installed in the image.
+- `TOOLBOX_RECONCILER_OCR_DPI=150` — quarter the pixels and memory of 300 DPI.
+- `TOOLBOX_RECONCILER_OCR_MAX_PAGES=12` — cap the pages OCR'd per file.
+
+Also set `TOOLBOX_MAX_UPLOAD_MB=50` to match nginx, so an oversized three-file
+upload fails in the app with a clear message rather than a raw nginx 413. Log
+writes are non-fatal: a read-only log directory does not fail a reconciliation.
+
 ## Versioning and release
 
 Versions are stored in:
