@@ -11,7 +11,7 @@
 
   <div class="panel">
     <p class="panel-label">Upload the two estimates</p>
-    <p class="muted-note">Provide the carrier insurance estimate and the contractor Xactimate estimate for the same claim. The tool lists the line items and Overhead &amp; Profit the carrier omits and reconciles the RCV gap between the two files. PDFs are read locally and deleted after the report is built.</p>
+    <p class="muted-note">Provide the carrier insurance estimate and the contractor Xactimate estimate for the same claim. The tool lists the line items the carrier omits and breaks down the shared items. PDFs are read locally and deleted after the report is built.</p>
     <form id="recForm" enctype="multipart/form-data">
       <div class="rec-inputs">
         <div class="rec-input">
@@ -42,47 +42,39 @@
       <div class="rec-totals">
         <div><span class="rec-t-label">Carrier RCV</span><span class="rec-t-val" id="carrierRcv">$0.00</span><span class="rec-t-sub" id="carrierSub"></span></div>
         <div><span class="rec-t-label">Contractor RCV</span><span class="rec-t-val" id="contractorRcv">$0.00</span><span class="rec-t-sub" id="contractorSub"></span></div>
-        <div><span class="rec-t-label">Total RCV gap</span><span class="rec-t-val" id="totalGap">$0.00</span><span class="rec-t-sub" id="gapSub"></span></div>
+        <div><span class="rec-t-label">Total RCV gap</span><span class="rec-t-val" id="totalGap">$0.00</span><span class="rec-t-sub">contractor minus carrier</span></div>
+      </div>
+      <div class="rec-op">
+        <span class="rec-op-label">Overhead &amp; Profit applied</span>
+        <label class="rec-op-flag"><input type="checkbox" id="carrierOp" disabled> Carrier</label>
+        <label class="rec-op-flag"><input type="checkbox" id="contractorOp" disabled> Contractor</label>
       </div>
     </div>
 
     <div id="alerts"></div>
 
     <div class="panel">
-      <p class="panel-label">RCV reconciliation</p>
-      <p class="muted-note">An exact build-up from the carrier RCV to the contractor RCV. A small residual means the two files are fully reconciled.</p>
-      <div class="rec-table-wrap">
-        <table class="lineitems" id="bridgeTable"><tbody></tbody></table>
-      </div>
-    </div>
-
-    <div class="panel" id="missingPanel">
       <p class="panel-label">Missing line items <span class="panel-count" id="missingCount"></span></p>
-      <p class="muted-note">In the contractor scope, absent from the carrier estimate.</p>
+      <p class="muted-note">In the contractor scope, absent from the carrier estimate. Grouped by category, largest RCV first. RCV is the value printed in the contractor estimate.</p>
       <div class="rec-table-wrap">
         <table class="lineitems" id="missingTable">
-          <thead><tr><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Est. $ (RCV)</th><th>Conf.</th></tr></thead>
+          <thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">RCV (from estimate)</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </div>
 
-    <div class="panel" id="opPanel" style="display:none;">
-      <p class="panel-label">Overhead &amp; Profit</p>
+    <div class="panel" id="sharedPanel">
+      <p class="panel-label">Shared items <span class="panel-count" id="sharedCount"></span></p>
+      <p class="muted-note">Line items both estimates carry, with the quantity and price difference. A positive delta means the contractor is higher.</p>
       <div class="rec-table-wrap">
-        <table class="lineitems" id="opTable">
-          <thead><tr><th>Item</th><th class="num">Est. $ (RCV)</th><th>Conf.</th><th>Note</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel" id="infoPanel" style="display:none;">
-      <p class="panel-label">Shared items priced higher by the contractor</p>
-      <p class="muted-note">Informational: price-list or region differences on items both files carry. Not counted as missing scope.</p>
-      <div class="rec-table-wrap">
-        <table class="lineitems" id="infoTable">
-          <thead><tr><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Carrier $/u</th><th class="num">Contractor $/u</th><th class="num">Est. $ delta</th></tr></thead>
+        <table class="lineitems" id="sharedTable">
+          <thead><tr>
+            <th>Category</th><th>Item</th>
+            <th class="num">Carrier qty</th><th class="num">Contr. qty</th><th class="num">&Delta; qty</th>
+            <th class="num">Carrier $/u</th><th class="num">Contr. $/u</th><th class="num">&Delta; $/u</th>
+            <th class="num">Carrier RCV</th><th class="num">Contr. RCV</th><th class="num">&Delta; RCV</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -102,9 +94,7 @@
 
 {% block extra_scripts %}
 <script>
-  const REC_URLS = {
-    run: "{{ url_for('reconciler.run') }}",
-  };
+  const REC_URLS = { run: "{{ url_for('reconciler.run') }}" };
   function $(id) { return document.getElementById(id); }
 
   function money(x) {
@@ -112,103 +102,99 @@
     const s = Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     return (v < 0 ? '-$' : '$') + s;
   }
-  function signed(x) {
+  function signedMoney(x) {
     const v = Number(x || 0);
-    return (v >= 0 ? '+' : '') + money(v);
+    return (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.textContent = text;
-    return e;
+  function num(x) {
+    const v = Number(x || 0);
+    return v.toLocaleString('en-US', {maximumFractionDigits: 2});
   }
-  function row(cells) {
-    const tr = document.createElement('tr');
-    cells.forEach(c => {
-      const td = document.createElement('td');
-      if (c && typeof c === 'object') {
-        if (c.cls) td.className = c.cls;
-        td.textContent = c.text;
-      } else {
-        td.textContent = c;
-      }
-      tr.appendChild(td);
-    });
-    return tr;
+  function signedNum(x) {
+    const v = Number(x || 0);
+    return (v >= 0 ? '+' : '') + num(v);
+  }
+  function cell(text, cls) {
+    const td = document.createElement('td');
+    if (cls) td.className = cls;
+    td.textContent = text;
+    return td;
   }
 
   function alertBox(kind, text) {
-    const d = el('div', 'rec-alert rec-alert-' + kind);
+    const d = document.createElement('div');
+    d.className = 'rec-alert rec-alert-' + kind;
     d.textContent = text;
     return d;
   }
 
-  function buildBridge(b) {
-    const tb = $('bridgeTable').querySelector('tbody');
+  function buildMissing(missing) {
+    const tb = $('missingTable').querySelector('tbody');
     tb.innerHTML = '';
-    const rows = [
-      ['Carrier estimate RCV (as written)', b.carrier_rcv, ''],
-      ['+ Missing line items (contractor scope carrier omits)', b.missing_base, 'base pricing, before O&P'],
-      ['+/- Net price & quantity difference on shared items', b.matched_delta, 'positive = contractor higher'],
-      ['- Items only in the carrier estimate', -b.carrier_only_base, 'scope the contractor dropped'],
-      ['+ Overhead & Profit gap', b.op_gap, 'contractor O&P minus carrier O&P'],
-      ['+ Sales tax gap', b.tax_gap, ''],
-    ];
-    rows.forEach(([label, amt, note]) => {
-      tb.appendChild(row([label, {cls: 'num', text: signed(amt)}, {cls: 'rec-note-cell', text: note}]));
+    $('missingCount').textContent = missing.length ? '(' + missing.length + ')' : '';
+    if (!missing.length) {
+      const tr = document.createElement('tr');
+      const td = cell('No missing line items detected.', 'rec-empty');
+      td.colSpan = 4; tr.appendChild(td); tb.appendChild(tr);
+      return;
+    }
+    // backend returns items pre-sorted by (category, -rcv); insert a header +
+    // subtotal row whenever the category changes.
+    let cat = null, catRows = [], catTotal = 0, headerCell = null;
+    function flush() {
+      if (headerCell) headerCell.textContent = cat + '  ·  ' + money(catTotal);
+    }
+    missing.forEach(m => {
+      if (m.category !== cat) {
+        flush();
+        cat = m.category; catTotal = 0;
+        const htr = document.createElement('tr');
+        htr.className = 'rec-cat-head';
+        headerCell = document.createElement('td');
+        headerCell.colSpan = 4;
+        htr.appendChild(headerCell);
+        tb.appendChild(htr);
+      }
+      catTotal += Number(m.rcv || 0);
+      const tr = document.createElement('tr');
+      tr.appendChild(cell(m.description));
+      tr.appendChild(cell(num(m.quantity), 'num'));
+      tr.appendChild(cell(m.unit));
+      tr.appendChild(cell(money(m.rcv), 'num'));
+      tb.appendChild(tr);
     });
-    const pred = row(['= Reconciled contractor RCV (predicted)', {cls: 'num', text: money(b.predicted_contractor_rcv)}, '']);
-    pred.className = 'rec-bridge-strong';
-    tb.appendChild(pred);
-    tb.appendChild(row(['Actual contractor RCV', {cls: 'num', text: money(b.actual_contractor_rcv)}, '']));
-    const pct = b.total_gap ? Math.abs(b.residual) / Math.abs(b.total_gap) * 100 : 0;
-    tb.appendChild(row(['Unreconciled residual', {cls: 'num', text: money(b.residual)},
-                        {cls: 'rec-note-cell', text: 'parse/rounding noise (' + pct.toFixed(1) + '% of gap)'}]));
+    flush();
   }
 
-  function buildTables(data) {
-    const sugg = data.suggestions || [];
-
-    const missing = sugg.filter(s => s.status === 'MISSING' || s.status === 'SUGGESTED');
-    const mtb = $('missingTable').querySelector('tbody');
-    mtb.innerHTML = '';
-    $('missingCount').textContent = missing.length ? '(' + missing.length + ')' : '';
-    if (missing.length) {
-      missing.forEach(s => mtb.appendChild(row([
-        s.category, s.description,
-        {cls: 'num', text: (Number(s.quantity) || 0).toLocaleString('en-US')},
-        s.unit, {cls: 'num', text: money(s.dollars)}, s.confidence])));
-    } else {
+  function buildShared(shared) {
+    const panel = $('sharedPanel'), tb = $('sharedTable').querySelector('tbody');
+    tb.innerHTML = '';
+    $('sharedCount').textContent = shared.length ? '(' + shared.length + ')' : '';
+    if (!shared.length) {
       const tr = document.createElement('tr');
-      const td = el('td', 'rec-empty', 'No missing line items detected.');
-      td.colSpan = 6; tr.appendChild(td); mtb.appendChild(tr);
+      const td = cell('No shared line items matched between the two estimates.', 'rec-empty');
+      td.colSpan = 11; tr.appendChild(td); tb.appendChild(tr);
+      return;
     }
-
-    const op = sugg.filter(s => s.status === 'MISSING_OP');
-    const opPanel = $('opPanel'), otb = $('opTable').querySelector('tbody');
-    otb.innerHTML = '';
-    if (op.length) {
-      opPanel.style.display = '';
-      op.forEach(s => otb.appendChild(row([
-        s.description, {cls: 'num', text: money(s.dollars)}, s.confidence, s.note])));
-    } else {
-      opPanel.style.display = 'none';
-    }
-
-    const info = sugg.filter(s => s.status === 'INFO');
-    const infoPanel = $('infoPanel'), itb = $('infoTable').querySelector('tbody');
-    itb.innerHTML = '';
-    if (info.length) {
-      infoPanel.style.display = '';
-      info.forEach(s => itb.appendChild(row([
-        s.category, s.description,
-        {cls: 'num', text: (Number(s.quantity) || 0).toLocaleString('en-US')}, s.unit,
-        {cls: 'num', text: money(s.carrier_unit_price)},
-        {cls: 'num', text: money(s.contractor_unit_price)},
-        {cls: 'num', text: money(s.dollars)}])));
-    } else {
-      infoPanel.style.display = 'none';
-    }
+    shared.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.appendChild(cell(s.category));
+      tr.appendChild(cell(s.description));
+      tr.appendChild(cell(num(s.carrier_quantity), 'num'));
+      tr.appendChild(cell(num(s.contractor_quantity), 'num'));
+      tr.appendChild(cell(signedNum(s.quantity_delta), 'num ' + deltaCls(s.quantity_delta)));
+      tr.appendChild(cell(money(s.carrier_unit_price), 'num'));
+      tr.appendChild(cell(money(s.contractor_unit_price), 'num'));
+      tr.appendChild(cell(signedMoney(s.price_delta), 'num ' + deltaCls(s.price_delta)));
+      tr.appendChild(cell(money(s.carrier_rcv), 'num'));
+      tr.appendChild(cell(money(s.contractor_rcv), 'num'));
+      tr.appendChild(cell(signedMoney(s.rcv_delta), 'num ' + deltaCls(s.rcv_delta)));
+      tb.appendChild(tr);
+    });
+  }
+  function deltaCls(x) {
+    const v = Number(x || 0);
+    return v > 0 ? 'rec-up' : (v < 0 ? 'rec-down' : '');
   }
 
   function buildAlerts(data) {
@@ -220,8 +206,6 @@
   }
 
   function wireDownload(btn, url) {
-    // Desktop (pywebview) uses a native Save As on the file in the upload dir;
-    // a plain browser falls back to a normal download.
     const name = decodeURIComponent(url.split('/').pop());
     btn.onclick = async function () {
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
@@ -267,11 +251,12 @@
       $('carrierSub').textContent = data.carrier.name;
       $('contractorRcv').textContent = money(data.contractor.grand_rcv);
       $('contractorSub').textContent = data.contractor.name;
-      $('totalGap').textContent = money(data.bridge.total_gap);
-      $('gapSub').textContent = 'contractor minus carrier';
+      $('totalGap').textContent = money(data.gap);
+      $('carrierOp').checked = !!data.carrier.has_op;
+      $('contractorOp').checked = !!data.contractor.has_op;
 
-      buildBridge(data.bridge);
-      buildTables(data);
+      buildMissing(data.missing || []);
+      buildShared(data.shared || []);
       buildAlerts(data);
       wireDownload($('dlMd'), data.downloads.md);
       wireDownload($('dlCsv'), data.downloads.csv);

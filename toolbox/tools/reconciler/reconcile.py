@@ -57,6 +57,24 @@ class Suggestion:
 
 
 @dataclass
+class SharedItem:
+    """A line item both estimates carry, with the price and quantity breakdown.
+    All figures are pulled from the two estimates as printed."""
+    description: str
+    category: str
+    unit: str
+    carrier_quantity: float
+    contractor_quantity: float
+    quantity_delta: float          # contractor - carrier
+    carrier_unit_price: float
+    contractor_unit_price: float
+    price_delta: float             # contractor - carrier
+    carrier_rcv: float
+    contractor_rcv: float
+    rcv_delta: float               # contractor - carrier
+
+
+@dataclass
 class Recon:
     claimant: str
     mode: str                       # 'reconciled' | 'estimated'
@@ -70,6 +88,7 @@ class Recon:
     carrier_has_op: bool = False
     contractor_has_op: bool = False
     suggestions: list = field(default_factory=list)
+    shared: list = field(default_factory=list)
     bridge: dict = field(default_factory=dict)
     est_recoverable: float = 0.0
     notes: list = field(default_factory=list)
@@ -123,18 +142,20 @@ def rcv_bridge(carrier, contractor, matched, missing, carrier_only):
 # Reconciled mode
 # --------------------------------------------------------------------------- #
 
-def _op_gap_dollars(carrier, contractor):
-    return round((contractor.overhead + contractor.profit)
-                 - (carrier.overhead + carrier.profit), 2)
-
-
 def reconcile_matched(carrier, contractor, claimant, playbook=None):
     # index carrier items, iterate contractor -> missing = contractor scope the
     # carrier lacks; carrier_only = items the carrier has but the contractor drops.
     matched, missing, carrier_only = match_line_items(carrier.items, contractor.items)
 
+    # Missing line items: contractor scope the carrier omits, grouped by category
+    # with the largest-dollar categories first and, within a category, largest RCV
+    # first. Dollars are the RCV as printed in the contractor estimate (it.rcv),
+    # not a recomputed qty x price.
+    cat_total = {}
+    for it in missing:
+        cat_total[it.category] = cat_total.get(it.category, 0.0) + it.rcv
     sugg = []
-    for it in sorted(missing, key=lambda x: -base(x)):
+    for it in sorted(missing, key=lambda x: (-cat_total[x.category], x.category, -x.rcv)):
         sugg.append(Suggestion(
             status="MISSING", description=it.description, category=it.category,
             quantity=it.quantity, unit=it.unit, carrier_unit_price=0.0,
@@ -142,32 +163,28 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
             confidence="high",
             note="in contractor scope, absent from carrier"))
 
-    # O&P gap
-    if contractor.has_op and not carrier.has_op:
-        opg = _op_gap_dollars(carrier, contractor)
-        if opg > 0:
-            sugg.append(Suggestion(
-                status="MISSING_OP", description="Overhead & Profit (10% + 10%)",
-                category="O&P", quantity=1.0, unit="EA", carrier_unit_price=0.0,
-                contractor_unit_price=opg, dollars=opg, confidence="high",
-                note="carrier applied no O&P; contractor applied "
-                     f"${contractor.overhead:,.0f} + ${contractor.profit:,.0f}"))
-
-    # informational price deltas on shared items
-    info = []
+    # Shared items: every matched pair with its price and quantity breakdown, all
+    # figures pulled from the two estimates. Grouped by category, largest RCV
+    # difference first. (ci = contractor item, cr = carrier item.)
+    shared = []
     for ci, cr in matched:
-        if cr.unit_price > 0 and ci.unit_price > cr.unit_price * 1.05:
-            delta = round((ci.unit_price - cr.unit_price) * cr.quantity, 2)
-            if delta >= 25:
-                info.append(Suggestion(
-                    status="INFO", description=ci.description, category=ci.category,
-                    quantity=cr.quantity, unit=cr.unit,
-                    carrier_unit_price=cr.unit_price,
-                    contractor_unit_price=ci.unit_price, dollars=delta,
-                    confidence="advisory",
-                    note="contractor unit price higher (price-list/region)"))
-    info.sort(key=lambda s: -s.dollars)
-    sugg.extend(info)
+        shared.append(SharedItem(
+            description=cr.description or ci.description,
+            category=cr.category,
+            unit=cr.unit or ci.unit,
+            carrier_quantity=cr.quantity,
+            contractor_quantity=ci.quantity,
+            quantity_delta=round(ci.quantity - cr.quantity, 2),
+            carrier_unit_price=cr.unit_price,
+            contractor_unit_price=ci.unit_price,
+            price_delta=round(ci.unit_price - cr.unit_price, 2),
+            carrier_rcv=cr.rcv,
+            contractor_rcv=ci.rcv,
+            rcv_delta=round(ci.rcv - cr.rcv, 2)))
+    scat_total = {}
+    for s in shared:
+        scat_total[s.category] = scat_total.get(s.category, 0.0) + abs(s.rcv_delta)
+    shared.sort(key=lambda s: (-scat_total[s.category], s.category, -abs(s.rcv_delta)))
 
     bridge = rcv_bridge(carrier, contractor, matched, missing, carrier_only)
     # Recoverable = the net RCV the contractor scope supports beyond the carrier
@@ -180,7 +197,7 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
         carrier_ocr=carrier.ocr, contractor_name=contractor.name,
         contractor_grand=contractor.grand_rcv, contractor_conf=contractor.confidence,
         carrier_has_op=carrier.has_op, contractor_has_op=contractor.has_op,
-        suggestions=sugg, bridge=bridge, est_recoverable=est)
+        suggestions=sugg, shared=shared, bridge=bridge, est_recoverable=est)
 
     if carrier.items and not matched:
         r.notes.append("cross-platform pair (carrier and contractor use different "

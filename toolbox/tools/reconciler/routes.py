@@ -154,11 +154,20 @@ def run():
 
         md_path, csv_path = write_report(recon, _upload_dir())
 
+        missing = [{
+            "category": s.category,
+            "description": s.description,
+            "quantity": s.quantity,
+            "unit": s.unit,
+            "rcv": s.dollars,          # RCV as printed in the contractor estimate
+        } for s in recon.suggestions if s.status == "MISSING"]
+
         return jsonify({
             "claimant": recon.claimant,
-            "bridge": recon.bridge,
-            "suggestions": [asdict(s) for s in recon.suggestions],
+            "gap": round(recon.contractor_grand - recon.carrier_grand, 2),
             "est_recoverable": recon.est_recoverable,
+            "missing": missing,
+            "shared": [asdict(s) for s in recon.shared],
             "notes": recon.notes,
             "carrier": _side(carrier),
             "contractor": _side(contractor),

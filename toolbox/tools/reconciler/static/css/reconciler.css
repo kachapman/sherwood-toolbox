@@ -53,6 +53,18 @@
 }
 @media (max-width: 720px) { .rec-totals { grid-template-columns: 1fr; } }
 
+/* O&P applied flags */
+.rec-op {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.rec-op-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted);
+}
+.rec-op-flag { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--ink); }
+.rec-op-flag input { width: 16px; height: 16px; accent-color: var(--green-800); }
+
 /* Alerts */
 .rec-alert {
   border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;
@@ -64,9 +76,18 @@
 /* Tables */
 .rec-table-wrap { overflow-x: auto; }
 .lineitems td.num, .lineitems th.num { text-align: right; white-space: nowrap; }
-.rec-note-cell { color: var(--muted); font-size: 0.82rem; }
-.rec-bridge-strong td { font-weight: 700; color: var(--green-900); background: var(--sage-50); }
 .rec-empty { color: var(--muted); font-style: italic; }
+
+/* Missing-items category group header */
+.rec-cat-head td {
+  font-weight: 700; color: var(--green-900); background: var(--sage-50);
+  font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Signed delta emphasis (contractor higher / lower) */
+.rec-up { color: #8a4b18; font-weight: 600; }
+.rec-down { color: #2e6b34; font-weight: 600; }
 
 /* Downloads */
 .rec-downloads .btn { margin-right: 10px; }

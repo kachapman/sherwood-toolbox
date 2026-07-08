@@ -8,11 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Estimate Reconciler** tool: upload a carrier estimate and a contractor Xactimate estimate for the same claim; the tool lists the line items and Overhead & Profit the carrier omits and reconciles the RCV gap with an exact bridge, with downloadable `.md`/`.csv` reports. The engine (parse, match, reconcile, report) is ported from the standalone reconciler.
+- **Estimate Reconciler** tool: upload a carrier estimate and a contractor Xactimate estimate for the same claim. The tool lists the line items the carrier omits (grouped by category, largest RCV first), breaks down the shared items by quantity and price, flags whether Overhead & Profit is applied on each estimate, and reports the RCV gap, with downloadable `.md`/`.csv` reports. The engine (parse, match, reconcile, report) is ported from the standalone reconciler.
 - Tesseract OCR support as an **optional** dependency for image-only (scanned) estimates. When Tesseract is absent, the Reconciler shows a clear message and continues without crashing.
 
 ### Changed
 - The Reconciler reads PDF text and OCR through PyMuPDF (`fitz`) only, removing any poppler/`pdftotext` dependency. Its layout-preserving extraction reproduces the standalone CLI's figures to the cent.
+
+### Fixed
+- Carrier grand RCV is now read from the estimate's recap total instead of summing every "Replacement Cost Value" occurrence, which double-counted coverage subtotals and picked up legend-page example numbers (e.g. Gritzman read $33,056.74 instead of the correct $32,813.71). Extraction now tries, in order: an Allstate-style "Loss Recap Summary" grand `TOTAL` row, the sum of distinct per-coverage "Replacement Cost Value" lines, then the "Line Item Totals" row (RCV column identified by RCV − depreciation = ACV). Verified against 14 carrier estimates.
 
 ## [0.2.0] - 2026-06-30
 
