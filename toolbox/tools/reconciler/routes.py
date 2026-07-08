@@ -17,7 +17,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file, url_f
 from werkzeug.utils import secure_filename
 
 from ...config import Config
-from . import logbook, markup, match, playbook as playbook_mod
+from . import crm, logbook, markup, match, playbook as playbook_mod
 from .extract import extract_estimate
 from .reconcile import reconcile_effectiveness, reconcile_matched
 
@@ -73,6 +73,25 @@ def _save_upload(file_storage):
     path = os.path.join(_upload_dir(), name)
     file_storage.save(path)
     return path
+
+
+def _resolve_slot(file_key, id_key, name_key):
+    """A slot is filled by an uploaded file or, failing that, a CRM file the user
+    picked (downloaded here by its numeric id). The CRM file keeps its real title
+    so the surname / carrier detection still works. Returns a local path or None."""
+    fs = request.files.get(file_key)
+    if fs and fs.filename:
+        return _save_upload(fs)
+    file_id = (request.form.get(id_key) or "").strip()
+    if not file_id:
+        return None
+    title = (request.form.get(name_key) or "").strip() or f"crm_{file_id}.pdf"
+    name = secure_filename(title)
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    dest = os.path.join(_upload_dir(), name)
+    crm.download_file(file_id, dest)
+    return dest
 
 
 def _claimant_from(contractor_name, carrier_name):
@@ -138,16 +157,48 @@ def index():
     return render_template("reconciler.html")
 
 
+# === SECTION: CRM fetch (OnlyOffice) ===
+@bp.route("/crm/search", methods=["POST"])
+def crm_search():
+    """Deals whose title matches the query, for the fetch panel's picker."""
+    query = (request.form.get("query") or "").strip()
+    if len(query) < 2:
+        return jsonify({"ok": False, "error": "Type at least two characters."})
+    try:
+        return jsonify({"ok": True, "deals": crm.search_deals(query)})
+    except crm.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"CRM search failed: {e}"})
+
+
+@bp.route("/crm/files", methods=["POST"])
+def crm_files():
+    """A deal's PDF documents, ranked with the three slots pre-guessed."""
+    deal_id = (request.form.get("deal_id") or "").strip()
+    if not deal_id.isdigit():
+        return jsonify({"ok": False, "error": "Pick a deal first."})
+    try:
+        result = crm.deal_files(deal_id)
+        return jsonify({"ok": True, **result})
+    except crm.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not list the deal's files: {e}"})
+
+
 @bp.route("/run", methods=["POST"])
 def run():
     carrier_path = contractor_path = og_path = None
     try:
-        carrier_path = _save_upload(request.files.get("carrier"))
-        contractor_path = _save_upload(request.files.get("contractor"))
-        og_path = _save_upload(request.files.get("og"))   # optional original carrier
+        carrier_path = _resolve_slot("carrier", "carrier_file_id", "carrier_file_name")
+        contractor_path = _resolve_slot("contractor", "contractor_file_id",
+                                        "contractor_file_name")
+        og_path = _resolve_slot("og", "og_file_id", "og_file_name")   # optional
         if not carrier_path or not contractor_path:
-            return jsonify({"error": "Upload both a carrier estimate and a "
-                                     "contractor estimate."}), 400
+            return jsonify({"error": "Provide a current carrier estimate and a "
+                                     "contractor supplement (upload or from the "
+                                     "CRM)."}), 400
 
         carrier = extract_estimate(carrier_path, "carrier")
         contractor = extract_estimate(contractor_path, "contractor")
