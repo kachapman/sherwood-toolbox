@@ -131,10 +131,10 @@ def _statements_md(recon):
 def _hypotheses_md(recon):
     if not recon.hypotheses:
         return ""
-    out = ["## Denial hypotheses",
-           "_Why scope may be missing. \"Quoted exclusion\" is backed by the "
-           "carrier's own words; \"Inference\" is a guess to verify with the "
-           "carrier._", ""]
+    out = ["## Why the carrier omitted these",
+           "_Each cluster of missing items and the reason it is out. A quoted "
+           "exclusion is a reason the carrier's own estimate states; an inference "
+           "is our read, for the carrier to confirm._", ""]
     for h in recon.hypotheses:
         title = _THEME_TITLES.get(h.theme, h.theme)
         nums = ", ".join(f"#{n}" for n in h.item_numbers)

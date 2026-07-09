@@ -205,16 +205,17 @@ def derive_hypotheses(carrier_statements, missing):
             continue
         quoted = _THEME_STATEMENT[theme] in kinds
         if theme == "MATCHING":
-            note = ("The carrier's matching exclusion likely explains these omitted "
-                    "siding/soffit/fascia items." if quoted else
-                    "Possible matching dispute; no matching exclusion is quoted in "
-                    "the estimate. Verify with the carrier.")
+            note = ("The carrier excludes these siding, soffit, and fascia items for "
+                    "matching; its estimate quotes the exclusion below." if quoted else
+                    "These are siding, soffit, and fascia items a matching dispute "
+                    "drops. The carrier's estimate states no matching exclusion. Ask "
+                    "the carrier why each is out.")
         else:  # CODE
-            note = ("The carrier's ordinance/code language likely explains these "
-                    "omitted code-upgrade items." if quoted else
-                    "Code/ordinance-typical items; no ordinance or code coverage "
-                    "language was found in the estimate. Confirm code coverage with "
-                    "the carrier.")
+            note = ("The carrier's ordinance-or-law language covers these code items; "
+                    "it is quoted below." if quoted else
+                    "These are code-driven items: ice-and-water shield, drip edge, "
+                    "and decking. The carrier cites no code or ordinance coverage. "
+                    "Confirm code coverage applies.")
         out.append(DenialHypothesis(
             theme=theme, basis="quoted" if quoted else "inference",
             label="Quoted exclusion" if quoted else "Inference - verify",
@@ -231,8 +232,8 @@ def derive_hypotheses(carrier_statements, missing):
             item_numbers=[i.number for i in rest],
             item_descriptions=[i.description for i in rest],
             dollars=round(sum(i.rcv for i in rest), 2),
-            note="No coverage limitation in the estimate explains these omissions. "
-                 "Follow up with the carrier."))
+            note="The carrier's estimate states no exclusion that reaches these "
+                 "items. Ask the carrier for the reason each is out."))
     out.sort(key=lambda h: (h.basis != "quoted", -h.dollars))
     return out
 
@@ -309,20 +310,18 @@ def coverage_limit_hypothesis(carrier, contractor, missing, og=None):
 
     sub = carrier.sublimit_coverages[0] if has_sublimit else ""
     cap_phrase = (f"the {sub} coverage" if sub else
-                  "a dwelling-extension / other-structures sublimit")
+                  "a dwelling-extension or other-structures sublimit")
     note = (
         rate_note +
-        f"That structure is capped by {cap_phrase}, a separate limit (commonly around "
-        f"10% of the Coverage A dwelling limit), and carries {_money0(cs['ext_dep'])} of "
-        f"depreciation held back until the work is completed. {_money0(ext_outstanding)} "
-        f"of your outstanding scope sits on it. If that sublimit is already reached, "
-        f"added scope there is not recoverable: the payout does not rise, held-back "
-        f"depreciation above the limit is lost, and the settlement can move to ACV, "
-        f"lowering the net returned to the homeowner. Confirm the remaining sublimit "
-        f"before pursuing this scope.")
+        f"That structure sits under {cap_phrase}, a separate limit set at 10% of the "
+        f"Coverage A dwelling limit on standard homeowner forms, and carries "
+        f"{_money0(cs['ext_dep'])} of depreciation held until the work is done. "
+        f"{_money0(ext_outstanding)} of the outstanding scope is on it. Past that "
+        f"limit, added scope does not raise the payout, the depreciation above it is "
+        f"unrecoverable, and the settlement on the structure drops to ACV. Confirm "
+        f"the remaining limit before pursuing this scope.")
 
-    label = ("Sublimit likely reached - verify" if frozen else
-             "Possible sublimit - verify")
+    label = ("Sublimit reached - confirm" if frozen else "Sublimit in play - confirm")
     return DenialHypothesis(
         theme="COVERAGE_LIMIT", basis="inference", label=label,
         statement=(f"Estimate carries a separate {sub} coverage." if sub else ""),
@@ -345,50 +344,42 @@ def build_narrative(recon):
 
     if recon.mode == "effectiveness":
         pct = round(recon.effectiveness * 100)
-        if pct >= 80:
-            prog = "nearly all of it"
-        elif pct >= 50:
-            prog = "most of it"
-        elif pct >= 25:
-            prog = "part of it"
-        elif pct >= 5:
-            prog = "only a small share"
-        else:
-            prog = "almost none of it"
         won = len(recon.approved_wins)
         out_count = sum(1 for s in recon.suggestions if s.status == "MISSING")
         out.append({"tone": "normal", "text":
-            f"You supplemented {_money0(recon.ask_dollars)} of scope onto the carrier's "
-            f"original estimate. The carrier has approved {_money0(recon.approved_dollars)} "
-            f"so far ({prog}, {pct}%), and {_money0(recon.outstanding_dollars)} is still on "
-            f"the table."})
+            f"The contractor supplement adds {_money0(recon.ask_dollars)} of scope to the "
+            f"carrier's original estimate. The carrier has picked up {_money0(recon.approved_dollars)}, "
+            f"{pct}% of it. {_money0(recon.outstanding_dollars)} of scoped work is still out."})
         out.append({"tone": "normal", "text":
-            f"{won} of your added items are now in the carrier's estimate (checked in green); "
-            f"{out_count} are still outstanding and painted in blue on the pages that follow."})
+            f"{won} supplement items are now in the carrier estimate, checked in green. "
+            f"{out_count} are missing and painted in blue on the carrier pages, each keyed "
+            f"to the contractor line that carries it."})
         if clh:
             out.append({"tone": "caution", "text":
-                f"Before chasing the rest: {_money0(clh.dollars)} of what's outstanding is on "
-                f"a secondary structure the carrier caps under a separate coverage limit that "
-                f"looks maxed out. Getting more approved there may add nothing to the payout, "
-                f"and can move that structure to actual cash value and lower the homeowner's "
-                f"check. Confirm that limit before pursuing it."})
+                f"One caution before pushing the rest. {_money0(clh.dollars)} of the outstanding "
+                f"scope is on a secondary structure the carrier caps under a separate limit that "
+                f"is already spent. Approvals there do not raise the payout; they drop that "
+                f"structure to ACV and cut the homeowner's net. Confirm the limit first."})
     else:
         gap = round(recon.contractor_grand - recon.carrier_grand, 2)
         miss = [s for s in recon.suggestions if s.status == "MISSING"]
         miss_d = round(sum(s.dollars for s in miss), 2)
         flagged = sum(1 for s in recon.shared if s.quantity_delta > 1e-6)
         out.append({"tone": "normal", "text":
-            f"Your estimate totals {_money0(recon.contractor_grand)}; the carrier's totals "
-            f"{_money0(recon.carrier_grand)}, a gap of {_money0(gap)}."})
-        out.append({"tone": "normal", "text":
-            f"{len(miss)} line items worth {_money0(miss_d)} are in your scope but missing "
-            f"from the carrier's, painted in salmon on the carrier pages. {flagged} shared "
-            f"lines are measured higher by the contractor."})
+            f"The contractor scopes {_money0(recon.contractor_grand)} of work. The carrier "
+            f"estimate stops at {_money0(recon.carrier_grand)}, short {_money0(gap)}."})
+        line2 = (f"{len(miss)} line items worth {_money0(miss_d)} are in the contractor estimate "
+                 f"and absent from the carrier's, painted in salmon on the carrier pages and "
+                 f"keyed to the contractor line number.")
+        if flagged:
+            line2 += (f" The carrier also measured {flagged} shared "
+                      f"line{'s' if flagged != 1 else ''} short of the contractor.")
+        out.append({"tone": "normal", "text": line2})
         if clh:
             out.append({"tone": "caution", "text":
-                f"Watch a secondary structure: {_money0(clh.dollars)} of the missing scope "
-                f"sits on a structure the carrier caps under a separate coverage limit, so "
-                f"more approvals there may not pay. Confirm the limit before pursuing it."})
+                f"One caution. {_money0(clh.dollars)} of the missing scope is on a secondary "
+                f"structure the carrier caps under a separate limit. Past that limit the added "
+                f"scope does not pay. Confirm the limit before pursuing it."})
     recon.narrative = out
 
 

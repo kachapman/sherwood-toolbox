@@ -68,18 +68,20 @@ def _readable_on(rgb):
 
 
 class Scheme:
-    """The four tones a painted-scope block needs: a solid header colour, a pale
-    row fill, body text, and text that reads on the header."""
+    """A painted-scope block's tones and its header word: a solid header colour, a
+    pale row fill, body text, text that reads on the header, and the label the
+    header bar states."""
 
-    def __init__(self, accent):
+    def __init__(self, accent, header):
         self.accent = accent
         self.tint = _tint(accent)
         self.text = _darken(accent)
         self.head_text = _readable_on(accent)
+        self.header = header
 
 
-MISSING_SCHEME = Scheme(MISSING)          # two-file mode: what the carrier omits
-OUTSTANDING_SCHEME = Scheme(OUTSTANDING)  # three-file mode: asked, not yet approved
+MISSING_SCHEME = Scheme(MISSING, "MISSING FROM CARRIER")       # two-file mode
+OUTSTANDING_SCHEME = Scheme(OUTSTANDING, "STILL OUTSTANDING")  # three-file mode
 
 # Warning accent for the coverage-sublimit caution.
 WARN = (0.54, 0.29, 0.09)
@@ -316,13 +318,14 @@ def paint_block(page, label, items, start_y, sch):
         page.draw_rect(fitz.Rect(x0, y, x1, y + ADD_HEADER_H), color=None, fill=sch.accent,
                        fill_opacity=1.0)
         page.insert_text(fitz.Point(x0 + 6, y + 8.7),
-                         f"+ ADD {len(items)} items in {label} ({_money(subtotal)}) - "
-                         f"see the back", fontname="hebo", fontsize=7.5, color=sch.head_text)
+                         f"{sch.header} - {label}: {len(items)} items "
+                         f"({_money(subtotal)}), see the back",
+                         fontname="hebo", fontsize=7.5, color=sch.head_text)
         return y + ADD_HEADER_H, 0
 
     page.draw_rect(fitz.Rect(x0, y, x1, y + ADD_HEADER_H), color=None, fill=sch.accent,
                    fill_opacity=1.0)
-    page.insert_text(fitz.Point(x0 + 6, y + 8.7), f"+ SCOPE TO ADD - {label}",
+    page.insert_text(fitz.Point(x0 + 6, y + 8.7), f"{sch.header} - {label}",
                      fontname="hebo", fontsize=7.5, color=sch.head_text)
     y += ADD_HEADER_H
 
@@ -445,13 +448,19 @@ class Canvas:
                               fontsize=size, color=color)
 
     def text(self, s, size=10, font="helv", color=INK, x=MARGIN, gap=4, width=None):
+        """One paragraph, wrapped and placed line by line. Drawing each line on its
+        own baseline (not a single insert_textbox) keeps the advanced height equal
+        to what was drawn, so a following block never overlaps the last line."""
         width = width or (PAGE_W - 2 * MARGIN)
-        lines = max(1, self._wrapped_lines(s, font, size, width))
-        h = lines * (size + 2)
+        lines = self._wrap(s, font, size, width) or [""]
+        line_h = size + 2
+        h = len(lines) * line_h
         self.space(h)
-        rect = fitz.Rect(x, self.y, x + width, PAGE_H - MARGIN)
-        self.page.insert_textbox(rect, s, fontname=font, fontsize=size, color=color,
-                                 align=fitz.TEXT_ALIGN_LEFT)
+        y = self.y + size
+        for ln in lines:
+            self.page.insert_text(fitz.Point(x, y), ln, fontname=font, fontsize=size,
+                                  color=color)
+            y += line_h
         self.y += h + gap
 
     @staticmethod
@@ -472,6 +481,22 @@ class Canvas:
                     line = trial
             n += count
         return n
+
+    @staticmethod
+    def _wrap(s, font, size, width):
+        """The wrapped lines themselves (what `_wrapped_lines` counts)."""
+        out = []
+        for para in s.split("\n"):
+            line = ""
+            for wd in para.split(" "):
+                trial = (line + " " + wd).strip()
+                if fitz.get_text_length(trial, font, size) > width and line:
+                    out.append(line)
+                    line = wd
+                else:
+                    line = trial
+            out.append(line)
+        return out
 
     def rule(self, color=LINE, gap=8):
         self.space(gap + 2)
@@ -512,19 +537,23 @@ class Canvas:
         self.y = top + h
 
     def quote(self, s):
-        """An indented, rule-bordered verbatim quote block."""
-        inner = PAGE_W - 2 * MARGIN - 18
-        lines = self._wrapped_lines(s, "helv", 9, inner)
-        h = lines * 11 + 10
+        """An indented, rule-bordered verbatim quote block. Each wrapped line is
+        placed on its own baseline (insert_text), so a short quote never clips the
+        way a tight insert_textbox rect does."""
+        inner = PAGE_W - 2 * MARGIN - 30
+        lines = self._wrap(s, "helv", 9, inner)
+        h = len(lines) * 12 + 10
         self.space(h)
         top = self.y
         self.page.draw_rect(fitz.Rect(MARGIN, top, PAGE_W - MARGIN, top + h),
                             color=None, fill=SAGE, fill_opacity=1.0)
         self.page.draw_line(fitz.Point(MARGIN, top), fitz.Point(MARGIN, top + h),
                             color=GREEN_MID, width=2.2)
-        self.page.insert_textbox(fitz.Rect(MARGIN + 12, top + 5, PAGE_W - MARGIN - 6,
-                                           top + h), s, fontname="helv", fontsize=9,
-                                 color=INK, align=fitz.TEXT_ALIGN_LEFT)
+        y = top + 12
+        for ln in lines:
+            self.page.insert_text(fitz.Point(MARGIN + 12, y), ln, fontname="helv",
+                                  fontsize=9, color=INK)
+            y += 12
         self.y = top + h + 6
 
 
@@ -625,13 +654,12 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
 
     c.rule()
     c.subheading("What the markup shows")
-    c.text(f"-  {won_count} of your supplement items have been approved: the carrier "
-           f"picked them up since the original estimate. They are checked in green on "
-           f"the carrier pages.", size=10, gap=6)
-    c.text(f"-  {len(missing)} items are still outstanding; {painted_count} are "
-           f"painted in blue onto the carrier pages, grouped by their section and "
-           f"keyed by supplement line number. The full list is under "
-           f'"Outstanding scope" at the back.', size=10, gap=6)
+    c.text(f"-  {won_count} supplement items are approved: the carrier added them "
+           f"since its original estimate. Green check on the carrier pages.",
+           size=10, gap=6)
+    c.text(f"-  {len(missing)} items are still out: {painted_count} painted in blue on "
+           f"the carrier pages by section, keyed to the contractor line number. Full "
+           f'list under "Outstanding scope" at the back.', size=10, gap=6)
     _flagged_line(c, flagged, located_count)
     _legend(c, effectiveness=True)
 
@@ -653,22 +681,27 @@ def _summary_recoverable(c, recon, flagged, missing, located_count, painted_coun
     c.text(op, size=9.5, gap=10)
     c.rule()
     c.subheading("What the markup shows")
-    c.text(f"-  {len(missing)} line items totalling {_money(missing_dollars)} are in "
-           f"the contractor scope and absent from this estimate; {painted_count} are "
-           f"painted onto the carrier pages in salmon, grouped by section. The full "
-           f'list is under "Missing scope" at the back.', size=10, gap=6)
+    c.text(f"-  {len(missing)} contractor line items worth {_money(missing_dollars)} "
+           f"are missing from this carrier estimate: {painted_count} painted in salmon "
+           f'on the carrier pages by section. Full list under "Missing scope" at the '
+           f"back.", size=10, gap=6)
     _flagged_line(c, flagged, located_count)
     _legend(c, effectiveness=False)
 
 
 def _flagged_line(c, flagged, located_count):
-    c.text(f"-  {len(flagged)} shared line items are measured higher by the "
-           f"contractor; {located_count} are highlighted in place on the pages that "
-           f'follow, keyed to the "Quantity differences" table.', size=10, gap=6)
+    n = len(flagged)
+    if n:
+        c.text(f"-  The carrier measured {n} shared line{'s' if n != 1 else ''} short "
+               f"of the contractor; {located_count} are highlighted on the carrier "
+               f'pages, keyed to the "Quantity differences" table.', size=10, gap=6)
+    else:
+        c.text("-  The carrier's quantities match the contractor on every shared line.",
+               size=10, gap=6)
     if flagged and located_count < len(flagged):
-        c.text("   Items that could not be located on the page (an image-only scan, "
-               "or a line layout the reader did not match) are not marked in place "
-               "but are still listed at the back.", size=9, color=MUTED, gap=10)
+        c.text("   Lines the reader did not place on the page (an image-only scan or "
+               "an unmatched layout) are not marked in place but are listed at the "
+               "back.", size=9, color=MUTED, gap=10)
     else:
         c.y += 4
 
@@ -676,17 +709,17 @@ def _flagged_line(c, flagged, located_count):
 def _legend(c, effectiveness):
     c.subheading("Legend")
     if effectiveness:
-        _legend_check(c, "Approved: your supplement item the carrier has picked up")
-        _legend_row(c, OUTSTANDING, "Outstanding scope: asked for, not yet in the carrier",
+        _legend_check(c, "Approved: contractor scope now in the carrier estimate")
+        _legend_row(c, OUTSTANDING, "Outstanding: contractor scope the carrier has not added",
                     opacity=1.0)
     else:
-        _legend_row(c, MISSING, "Missing scope: in the contractor estimate, not the carrier",
+        _legend_row(c, MISSING, "Missing: contractor scope the carrier estimate omits",
                     opacity=1.0)
-    _legend_row(c, SEVERITIES[0].fill, "Under-measured line, major gap ($2,000 or more short)")
-    _legend_row(c, SEVERITIES[1].fill, "Under-measured line, moderate gap ($1,000 to $2,000 short)")
-    _legend_row(c, SEVERITIES[2].fill, "Under-measured line, minor gap (under $1,000 short)")
-    c.text("A tab in the left margin marks each highlighted line; the coloured "
-           "blocks carry the supplement line number.", size=8.5, color=MUTED, gap=6)
+    _legend_row(c, SEVERITIES[0].fill, "Carrier short by $2,000 or more on a shared line")
+    _legend_row(c, SEVERITIES[1].fill, "Carrier short by $1,000 to $2,000 on a shared line")
+    _legend_row(c, SEVERITIES[2].fill, "Carrier short by under $1,000 on a shared line")
+    c.text("A left-margin tab marks each highlighted line; the coloured blocks carry "
+           "the contractor line number.", size=8.5, color=MUTED, gap=6)
 
 
 def _summary_footer(c, recon):
@@ -746,9 +779,10 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
 
     # --- Quantity differences (decodes the in-line flags) ---
     c.heading("Quantity differences")
-    c.text("Line items both estimates carry where the contractor measured a higher "
-           "quantity than the carrier. The tab number matches the flag on the "
-           "carrier page named in the last column.", size=9, color=MUTED, gap=8)
+    c.text("Line items both estimates carry where the carrier measured short of the "
+           "contractor. The tab number matches the highlight on the carrier page in "
+           "the last column; the RCV gap is that shortfall in dollars.",
+           size=9, color=MUTED, gap=8)
     if flagged:
         cols = [30, 150, 52, 52, 52, 78, 42]
         heads = ["#", "Item", "Carrier", "Contr.", "Diff qty", "RCV gap", "Page"]
@@ -765,18 +799,18 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
                    _signed_money(round(f.quantity_delta * f.contractor_unit_price, 2)),
                    pref], cols, size=8.5, aligns=aligns)
     else:
-        c.text("None: no shared line item is measured higher by the contractor.",
-               size=9.5, color=MUTED)
+        c.text("None. The carrier's quantities match the contractor on every shared "
+               "line.", size=9.5, color=MUTED)
 
     # --- Outstanding / missing scope, grouped by section (matches the painting) ---
     c.rule(gap=12)
     c.heading("Outstanding scope" if eff else "Missing scope")
-    c.text(("Your supplement items the carrier has not yet approved, painted in blue. "
-            if eff else
-            "In the contractor scope, absent from the carrier estimate, painted in "
-            "salmon. ") +
-           "Each is on the carrier pages by section; this is the complete list, "
-           "grouped by supplement section. The # is the supplement line number.",
+    c.text(("Supplement scope the carrier has not put in its current estimate, "
+            "painted in blue on the carrier pages. " if eff else
+            "Contractor scope the carrier estimate omits, painted in salmon on the "
+            "carrier pages. ") +
+           "Grouped by the section that carries it, largest RCV first. The # is the "
+           "contractor line number; RCV is the value the contractor printed.",
            size=9, color=MUTED, gap=8)
     if missing:
         cols = [34, 250, 66, 40, 78]
@@ -797,7 +831,7 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
                 c.row([str(s.number or ""), s.description, _qty(s.quantity), s.unit,
                        _money(s.dollars)], cols, size=8.5, aligns=aligns)
     else:
-        c.text("None: the carrier estimate carries every contractor line item.",
+        c.text("None. The carrier estimate carries every contractor line item.",
                size=9.5, color=MUTED)
 
     _bridge_section(c, recon)
@@ -810,12 +844,12 @@ def _approved_section(c, recon):
     """Supplement items the carrier has approved since the original estimate."""
     wins = recon.approved_wins
     c.heading("Approved wins")
-    c.text(f"Line items in the current carrier estimate that were not in the "
-           f"original: {_money(recon.approved_dollars)} of scope won to date. These "
-           f"are checked in green on the carrier pages.", size=9, color=MUTED, gap=8)
+    c.text(f"Line items the carrier added since its original estimate: "
+           f"{_money(recon.approved_dollars)} of contractor scope now in the current "
+           f"estimate, checked in green on the carrier pages.", size=9, color=MUTED, gap=8)
     if not wins:
-        c.text("None matched: no new line items were found versus the original "
-               "carrier estimate.", size=9.5, color=MUTED)
+        c.text("None. The carrier's current estimate matches its original line for "
+               "line.", size=9.5, color=MUTED)
         return
     cols = [34, 300, 56, 40, 78]
     aligns = [1, 0, 2, 0, 2]
@@ -832,8 +866,9 @@ def _bridge_section(c, recon):
         return
     c.rule(gap=12)
     c.heading("RCV build-up")
-    c.text("How the carrier RCV bridges to the contractor RCV. A small residual "
-           "means the two files are fully reconciled.", size=9, color=MUTED, gap=8)
+    c.text("The carrier RCV built up to the contractor RCV, line by line. A residual "
+           "near zero means every dollar of the gap is accounted for.",
+           size=9, color=MUTED, gap=8)
     labels = [
         ("Carrier RCV", b.get("carrier_rcv")),
         ("+ Missing line items", b.get("missing_base")),
@@ -859,10 +894,10 @@ def _hypotheses_section(c, recon):
     if not recon.hypotheses:
         return
     c.rule(gap=12)
-    c.heading("Denial hypotheses")
-    c.text('Why scope may be missing. "Quoted exclusion" is backed by the '
-           "carrier's own words; \"Inference\" is a guess to verify with the "
-           "carrier.", size=9, color=MUTED, gap=8)
+    c.heading("Why the carrier omitted these")
+    c.text("Each cluster of missing items and the reason it is out. A green badge "
+           "marks a reason the carrier's own estimate states; an amber badge is our "
+           "read, for the carrier to confirm.", size=9, color=MUTED, gap=8)
     for h in recon.hypotheses:
         title = _THEME_TITLES.get(h.theme, h.theme)
         head = title if title == h.label else f"{title} - {h.label}"
@@ -880,7 +915,8 @@ def _statements_section(c, recon):
         return
     c.rule(gap=12)
     c.heading("Carrier coverage statements")
-    c.text("Quoted verbatim from the carrier estimate.", size=9, color=MUTED, gap=8)
+    c.text("The carrier's own coverage language, quoted word for word from its "
+           "estimate.", size=9, color=MUTED, gap=8)
     by_kind = {}
     for s in recon.carrier_statements:
         by_kind.setdefault(s["kind"], []).append(s["text"])
