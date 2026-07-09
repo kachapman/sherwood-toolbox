@@ -1,5 +1,5 @@
 Package: sherwood-toolbox
-Version: 0.3.0
+Version: 0.3.3
 Section: utils
 Priority: optional
 Architecture: amd64

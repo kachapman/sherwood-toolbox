@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-09
+
+### Added
+- **Estimate Reconciler** — new tool to compare a carrier insurance estimate against a contractor supplement.
+  - Highlights missing scope, quantity gaps, and overlooked line items directly on the carrier PDF.
+  - Generates a per-run Markdown/CSV/JSON log under `DATA_DIR/reconciler-logs`.
+  - Supports fetching carrier and contractor estimates from the CRM by deal name or URL.
+  - Bundled `playbook.json` drives the secondary "commonly added" projection.
+  - Optional Tesseract OCR for image-only (scanned) PDFs; degrades gracefully when unavailable.
+- Registered the reconciler as the fifth tool in `toolbox/registry.py`.
+- Added `tools/*/*.json` to `pyproject.toml` package data so `playbook.json` ships with installs.
+- Updated `AGENTS.md`, `STRUCTURE.md`, and `README.md` to document the new tool.
+
+### Changed
+- Aligned `debian/control` version with `pyproject.toml` (now 0.3.3).
+
 ## [0.3.2] - 2026-07-06
 
 ### Fixed

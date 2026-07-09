@@ -1,6 +1,6 @@
 # Sherwood Toolbox
 
-A local, offline-first desktop application that bundles several construction-estimating tools under one simple hub.
+A local, offline-first desktop application that bundles five construction-estimating tools under one simple hub.
 
 **Original author:** Meat Claud & his Clanker  
 **Current maintenance:** This repository is being taken over and actively improved by the current owner.
@@ -24,6 +24,9 @@ All processing happens locally on your machine. Uploaded files stay on your syst
 
 - **Documents**  
   Create invoices and certificates of completion, with CRM auto-fill, line items, signatures, and company branding.
+
+- **Estimate Reconciler**  
+  Compare a carrier insurance estimate against a contractor supplement: missing scope, quantity gaps, and overlooked line items are highlighted directly on the carrier PDF, with a logged Markdown/CSV breakdown. Supports fetching estimates from the CRM by deal name or URL.
 
 ## Features
 
@@ -50,7 +53,7 @@ cd sherwood-toolbox
 ### .deb package (Debian, Ubuntu, Zorin, Pop!_OS, Linux Mint, etc.)
 
 ```bash
-sudo dpkg -i sherwood-toolbox_0.3.0_amd64.deb
+sudo dpkg -i sherwood-toolbox_0.3.3_amd64.deb
 sudo apt-get install -f   # if dependencies are missing
 ```
 
@@ -121,7 +124,7 @@ Then open the URL printed in the terminal.
 ## Project Structure
 
 - `toolbox/` — Core Flask application and shared assets
-- `toolbox/tools/` — Individual tools (estimate_enhancer, iws, photo_report, documents)
+- `toolbox/tools/` — Individual tools (estimate_enhancer, iws, photo_report, documents, reconciler)
 - `vendor/restoration-common/` — Vendored PDF generators and CRM helpers
 - `run/` — Launchers and packaging scripts
 - `debian/` — Debian package metadata
@@ -131,7 +134,7 @@ Then open the URL printed in the terminal.
 
 ## CRM Integration
 
-Photo Report and Documents can optionally fetch data from a CRM.
+Photo Report, Documents, and Estimate Reconciler can optionally fetch data from a CRM.
 
 - Default CRM base URL: `https://office.publicadjustermidwest.com`
 - Override with the `TOOLBOX_CRM_BASE_URL` environment variable
