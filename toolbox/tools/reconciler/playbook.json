@@ -32,9 +32,9 @@
       "unit": "SQ",
       "claim_frequency": 12,
       "claim_fraction": 0.706,
-      "median_qty": 24.0,
+      "median_qty": 23.52,
       "median_unit_price": 278.11,
-      "median_rcv": 7080.03
+      "median_rcv": 6572.55
     },
     {
       "base": "ice & water barrier",
@@ -43,9 +43,20 @@
       "unit": "SF",
       "claim_frequency": 12,
       "claim_fraction": 0.706,
-      "median_qty": 810.88,
-      "median_unit_price": 1.87,
-      "median_rcv": 1688.07
+      "median_qty": 648.0,
+      "median_unit_price": 1.86,
+      "median_rcv": 1481.4
+    },
+    {
+      "base": "drip edge",
+      "description": "Drip edge",
+      "category": "ROOFING",
+      "unit": "LF",
+      "claim_frequency": 12,
+      "claim_fraction": 0.706,
+      "median_qty": 163.88,
+      "median_unit_price": 3.01,
+      "median_rcv": 521.25
     },
     {
       "base": "asphalt starter - universal starter course",
@@ -54,9 +65,9 @@
       "unit": "LF",
       "claim_frequency": 12,
       "claim_fraction": 0.706,
-      "median_qty": 232.31,
+      "median_qty": 204.02,
       "median_unit_price": 1.96,
-      "median_rcv": 531.76
+      "median_rcv": 519.96
     },
     {
       "base": "flashing - pipe jack",
@@ -65,20 +76,31 @@
       "unit": "EA",
       "claim_frequency": 12,
       "claim_fraction": 0.706,
-      "median_qty": 1.5,
-      "median_unit_price": 55.63,
-      "median_rcv": 75.59
+      "median_qty": 1.0,
+      "median_unit_price": 54.84,
+      "median_rcv": 69.45
     },
     {
-      "base": "drip edge",
-      "description": "Drip edge",
+      "base": "roofing felt - 15 lb",
+      "description": "Roofing felt - 15 lb.",
       "category": "ROOFING",
-      "unit": "LF",
+      "unit": "SQ",
+      "claim_frequency": 11,
+      "claim_fraction": 0.647,
+      "median_qty": 18.45,
+      "median_unit_price": 38.57,
+      "median_rcv": 711.74
+    },
+    {
+      "base": "siding - vinyl",
+      "description": "R&R Siding - vinyl",
+      "category": "SIDING",
+      "unit": "SF",
       "claim_frequency": 10,
       "claim_fraction": 0.588,
-      "median_qty": 180.75,
-      "median_unit_price": 3.01,
-      "median_rcv": 723.4
+      "median_qty": 549.63,
+      "median_unit_price": 5.77,
+      "median_rcv": 2604.03
     },
     {
       "base": "hip / ridge cap - standard profile - composition shingles",
@@ -87,20 +109,9 @@
       "unit": "LF",
       "claim_frequency": 10,
       "claim_fraction": 0.588,
-      "median_qty": 67.53,
+      "median_qty": 64.82,
       "median_unit_price": 6.19,
-      "median_rcv": 475.64
-    },
-    {
-      "base": "siding - vinyl",
-      "description": "R&R Siding - vinyl",
-      "category": "SIDING",
-      "unit": "SF",
-      "claim_frequency": 9,
-      "claim_fraction": 0.529,
-      "median_qty": 602.5,
-      "median_unit_price": 6.11,
-      "median_rcv": 4940.41
+      "median_rcv": 437.39
     },
     {
       "base": "house wrap (air/moisture barrier)",
@@ -109,9 +120,9 @@
       "unit": "SF",
       "claim_frequency": 9,
       "claim_fraction": 0.529,
-      "median_qty": 680.55,
+      "median_qty": 643.7,
       "median_unit_price": 0.5,
-      "median_rcv": 460.19
+      "median_rcv": 435.26
     },
     {
       "base": "exterior light fixture - detach & reset",
@@ -122,7 +133,7 @@
       "claim_fraction": 0.529,
       "median_qty": 3.0,
       "median_unit_price": 126.51,
-      "median_rcv": 456.23
+      "median_rcv": 407.49
     },
     {
       "base": "heat, vent, & air cond. labor minimum",
@@ -136,26 +147,15 @@
       "median_rcv": 320.83
     },
     {
-      "base": "roofing felt - 15 lb",
-      "description": "Roofing felt - 15 lb.",
-      "category": "ROOFING",
-      "unit": "SQ",
-      "claim_frequency": 8,
-      "claim_fraction": 0.471,
-      "median_qty": 21.68,
-      "median_unit_price": 38.58,
-      "median_rcv": 821.45
-    },
-    {
       "base": "continuous ridge vent - shingle-over style",
       "description": "Continuous ridge vent - shingle-over style",
       "category": "ROOFING",
       "unit": "LF",
       "claim_frequency": 8,
       "claim_fraction": 0.471,
-      "median_qty": 62.5,
+      "median_qty": 55.0,
       "median_unit_price": 10.86,
-      "median_rcv": 815.58
+      "median_rcv": 692.96
     },
     {
       "base": "tandem axle dump trailer - per load - including dump fees",
@@ -186,9 +186,9 @@
       "unit": "EA",
       "claim_frequency": 8,
       "claim_fraction": 0.471,
-      "median_qty": 3.5,
-      "median_unit_price": 39.29,
-      "median_rcv": 160.32
+      "median_qty": 2.0,
+      "median_unit_price": 34.88,
+      "median_rcv": 111.36
     },
     {
       "base": "step flashing",
@@ -233,6 +233,17 @@
       "median_qty": 2.0,
       "median_unit_price": 39.88,
       "median_rcv": 95.72
+    },
+    {
+      "base": "haul and dispose of comp. shingles - laminated",
+      "description": "Tear off, haul and dispose of comp. shingles - Laminated",
+      "category": "ROOFING",
+      "unit": "SQ",
+      "claim_frequency": 6,
+      "claim_fraction": 0.353,
+      "median_qty": 19.06,
+      "median_unit_price": 84.0,
+      "median_rcv": 1649.63
     },
     {
       "base": "drip edge/gutter apron",
@@ -334,6 +345,17 @@
       "median_rcv": 257.18
     },
     {
+      "base": "gutter guard/screen",
+      "description": "R&R Gutter guard/screen",
+      "category": "GUTTERS",
+      "unit": "LF",
+      "claim_frequency": 6,
+      "claim_fraction": 0.353,
+      "median_qty": 58.0,
+      "median_unit_price": 5.57,
+      "median_rcv": 245.17
+    },
+    {
       "base": "overhead door weather stop",
       "description": "Overhead door weather stop",
       "category": "WINDOWS/DOORS",
@@ -367,17 +389,6 @@
       "median_rcv": 90.0
     },
     {
-      "base": "haul and dispose of comp. shingles - laminated",
-      "description": "Tear off, haul and dispose of comp. shingles - Laminated",
-      "category": "ROOFING",
-      "unit": "SQ",
-      "claim_frequency": 5,
-      "claim_fraction": 0.294,
-      "median_qty": 19.16,
-      "median_unit_price": 84.0,
-      "median_rcv": 1671.56
-    },
-    {
       "base": "disconnect box - 30 amp - non fused",
       "description": "Detach & Reset Disconnect box - 30 amp - non fused",
       "category": "ELECTRICAL",
@@ -395,9 +406,9 @@
       "unit": "LF",
       "claim_frequency": 5,
       "claim_fraction": 0.294,
-      "median_qty": 48.0,
+      "median_qty": 36.0,
       "median_unit_price": 10.13,
-      "median_rcv": 603.43
+      "median_rcv": 462.79
     },
     {
       "base": "fascia - metal - 8\"",
@@ -409,17 +420,6 @@
       "median_qty": 40.5,
       "median_unit_price": 7.82,
       "median_rcv": 398.81
-    },
-    {
-      "base": "gutter guard/screen",
-      "description": "R&R Gutter guard/screen",
-      "category": "GUTTERS",
-      "unit": "LF",
-      "claim_frequency": 5,
-      "claim_fraction": 0.294,
-      "median_qty": 47.0,
-      "median_unit_price": 5.57,
-      "median_rcv": 288.02
     },
     {
       "base": "clean with pressure/chemical spray",
@@ -442,6 +442,17 @@
       "median_qty": 24.5,
       "median_unit_price": 6.46,
       "median_rcv": 131.26
+    },
+    {
+      "base": "haul debris - per pickup truck load - including dump fees",
+      "description": "Haul debris - per pickup truck load - including dump fees",
+      "category": "CLEANING",
+      "unit": "EA",
+      "claim_frequency": 5,
+      "claim_fraction": 0.294,
+      "median_qty": 1.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
     },
     {
       "base": "gutter / downspout - aluminum - up to 5\"",
@@ -763,17 +774,6 @@
       "median_rcv": 858.75
     },
     {
-      "base": "gutter guard/screen - high grade",
-      "description": "R&R Gutter guard/screen - High grade",
-      "category": "GUTTERS",
-      "unit": "LF",
-      "claim_frequency": 2,
-      "claim_fraction": 0.118,
-      "median_qty": 36.08,
-      "median_unit_price": 19.54,
-      "median_rcv": 857.13
-    },
-    {
       "base": "deck guard rail - vinyl",
       "description": "R&R Deck guard rail - Vinyl",
       "category": "OTHER",
@@ -805,6 +805,17 @@
       "median_qty": 1.0,
       "median_unit_price": 538.18,
       "median_rcv": 677.75
+    },
+    {
+      "base": "gutter guard/screen - high grade",
+      "description": "R&R Gutter guard/screen - High grade",
+      "category": "GUTTERS",
+      "unit": "LF",
+      "claim_frequency": 2,
+      "claim_fraction": 0.118,
+      "median_qty": 26.5,
+      "median_unit_price": 19.54,
+      "median_rcv": 629.53
     },
     {
       "base": "1/2\" - drywall per lf - up to 4' tall",
@@ -873,17 +884,6 @@
       "median_rcv": 391.54
     },
     {
-      "base": "additional charge for steep roof greater than 12/12 slope",
-      "description": "Remove Additional charge for steep roof greater than 12/12 slope",
-      "category": "ROOFING",
-      "unit": "SQ",
-      "claim_frequency": 2,
-      "claim_fraction": 0.118,
-      "median_qty": 7.33,
-      "median_unit_price": 67.25,
-      "median_rcv": 384.77
-    },
-    {
       "base": "toilet - detach & reset",
       "description": "Toilet - Detach & reset",
       "category": "OTHER",
@@ -915,17 +915,6 @@
       "median_qty": 1.0,
       "median_unit_price": 294.81,
       "median_rcv": 353.77
-    },
-    {
-      "base": "exhaust cap - through roof - up to 4\"",
-      "description": "D&R Exhaust cap - through roof - up to 4\"",
-      "category": "ROOFING",
-      "unit": "EA",
-      "claim_frequency": 2,
-      "claim_fraction": 0.118,
-      "median_qty": 3.0,
-      "median_unit_price": 102.0,
-      "median_rcv": 344.48
     },
     {
       "base": "sink faucet - bathroom",
@@ -972,6 +961,17 @@
       "median_rcv": 294.86
     },
     {
+      "base": "exhaust cap - through roof - up to 4\"",
+      "description": "D&R Exhaust cap - through roof - up to 4\"",
+      "category": "ROOFING",
+      "unit": "EA",
+      "claim_frequency": 2,
+      "claim_fraction": 0.118,
+      "median_qty": 3.0,
+      "median_unit_price": 96.4,
+      "median_rcv": 289.4
+    },
+    {
       "base": "flashing - pipe jack - lead",
       "description": "Flashing - pipe jack - lead",
       "category": "ROOFING",
@@ -992,6 +992,17 @@
       "median_qty": 272.81,
       "median_unit_price": 0.79,
       "median_rcv": 262.93
+    },
+    {
+      "base": "additional charge for steep roof greater than 12/12 slope",
+      "description": "Remove Additional charge for steep roof greater than 12/12 slope",
+      "category": "ROOFING",
+      "unit": "SQ",
+      "claim_frequency": 2,
+      "claim_fraction": 0.118,
+      "median_qty": 3.16,
+      "median_unit_price": 36.09,
+      "median_rcv": 262.71
     },
     {
       "base": "exhaust cap - through roof - 6\" to 8\"",
@@ -1091,6 +1102,17 @@
       "median_qty": 114.76,
       "median_unit_price": 1.12,
       "median_rcv": 158.4
+    },
+    {
+      "base": "comb and straighten a/c condenser fins",
+      "description": "Comb and straighten a/c condenser fins",
+      "category": "HVAC",
+      "unit": "EA",
+      "claim_frequency": 2,
+      "claim_fraction": 0.118,
+      "median_qty": 1.0,
+      "median_unit_price": 125.61,
+      "median_rcv": 150.73
     },
     {
       "base": "furnace vent - rain cap and storm collar, 6\"",
@@ -1324,6 +1346,17 @@
       "median_rcv": 3.98
     },
     {
+      "base": "skylight step flashing kit - 12.1 sf or greater",
+      "description": "R&R Skylight step flashing kit - 12.1 sf or greater",
+      "category": "ROOFING",
+      "unit": "EA",
+      "claim_frequency": 2,
+      "claim_fraction": 0.118,
+      "median_qty": 1.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
       "base": "siding - .019\" metal (aluminum/steel)",
       "description": "R&R Siding - .019\" metal (aluminum/steel)",
       "category": "SIDING",
@@ -1522,17 +1555,6 @@
       "median_rcv": 2855.61
     },
     {
-      "base": "additional charge for steep roof - 7/12 to 9/12 slope",
-      "description": "Additional charge for steep roof - 7/12 to 9/12 slope",
-      "category": "ROOFING",
-      "unit": "SQ",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 48.67,
-      "median_unit_price": 50.96,
-      "median_rcv": 2480.22
-    },
-    {
       "base": "metal roofing - corrugated - 24 gauge",
       "description": "R&R Metal roofing - corrugated - 24 gauge",
       "category": "ROOFING",
@@ -1597,17 +1619,6 @@
       "median_qty": 165.32,
       "median_unit_price": 10.83,
       "median_rcv": 2203.84
-    },
-    {
-      "base": "overhead door & hardware - 8' x",
-      "description": "R&R Overhead door & hardware - 8' x",
-      "category": "WINDOWS/DOORS",
-      "unit": "EA",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 1.0,
-      "median_unit_price": 1703.86,
-      "median_rcv": 2148.45
     },
     {
       "base": "haul and dispose of comp. shingles - 3 tab",
@@ -1698,6 +1709,17 @@
       "median_rcv": 1253.27
     },
     {
+      "base": "additional charge for steep roof - 7/12 to 9/12 slope",
+      "description": "Additional charge for steep roof - 7/12 to 9/12 slope",
+      "category": "ROOFING",
+      "unit": "SQ",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 35.2,
+      "median_unit_price": 25.48,
+      "median_rcv": 1240.11
+    },
+    {
       "base": "prime & paint deck - 1 coat primer, 1 coat paint",
       "description": "Prime & paint deck - 1 coat primer, 1 coat paint",
       "category": "PAINTING",
@@ -1718,17 +1740,6 @@
       "median_qty": 2.0,
       "median_unit_price": 470.97,
       "median_rcv": 1184.56
-    },
-    {
-      "base": "skylight step flashing kit - 12.1 sf or greater",
-      "description": "R&R Skylight step flashing kit - 12.1 sf or greater",
-      "category": "ROOFING",
-      "unit": "EA",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 4.0,
-      "median_unit_price": 236.72,
-      "median_rcv": 1184.42
     },
     {
       "base": "gutter / downspout - aluminum - up to",
@@ -1762,6 +1773,17 @@
       "median_qty": 1.0,
       "median_unit_price": 918.52,
       "median_rcv": 1166.33
+    },
+    {
+      "base": "overhead door & hardware - 8' x",
+      "description": "R&R Overhead door & hardware - 8' x",
+      "category": "WINDOWS/DOORS",
+      "unit": "EA",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 1.0,
+      "median_unit_price": 851.93,
+      "median_rcv": 1074.22
     },
     {
       "base": "paint deck - 2 coats paint",
@@ -1828,17 +1850,6 @@
       "median_qty": 680.55,
       "median_unit_price": 1.06,
       "median_rcv": 883.3
-    },
-    {
-      "base": "additional charge for steep roof - 7/12 to",
-      "description": "Remove Additional charge for steep roof - 7/12 to",
-      "category": "ROOFING",
-      "unit": "SQ",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 42.15,
-      "median_unit_price": 20.04,
-      "median_rcv": 844.69
     },
     {
       "base": "overhead door panel - 13' to 18'",
@@ -2050,6 +2061,17 @@
       "median_rcv": 423.48
     },
     {
+      "base": "additional charge for steep roof - 7/12 to",
+      "description": "Remove Additional charge for steep roof - 7/12 to",
+      "category": "ROOFING",
+      "unit": "SQ",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 31.95,
+      "median_unit_price": 10.02,
+      "median_rcv": 422.35
+    },
+    {
       "base": "temporary toilet - minimum rental charge",
       "description": "Temporary toilet - Minimum rental charge",
       "category": "PERMITS/FEES",
@@ -2191,17 +2213,6 @@
       "median_qty": 1.0,
       "median_unit_price": 273.11,
       "median_rcv": 327.73
-    },
-    {
-      "base": "comb and straighten a/c condenser fins",
-      "description": "Comb and straighten a/c condenser fins",
-      "category": "HVAC",
-      "unit": "EA",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 1.0,
-      "median_unit_price": 251.22,
-      "median_rcv": 301.46
     },
     {
       "base": "add for decorative window - overhead door - per window",
@@ -2488,17 +2499,6 @@
       "median_qty": 1.0,
       "median_unit_price": 166.72,
       "median_rcv": 206.51
-    },
-    {
-      "base": "haul debris - per pickup truck load - including dump fees",
-      "description": "Haul debris - per pickup truck load - including dump fees",
-      "category": "CLEANING",
-      "unit": "EA",
-      "claim_frequency": 1,
-      "claim_fraction": 0.059,
-      "median_qty": 1.0,
-      "median_unit_price": 205.92,
-      "median_rcv": 205.92
     },
     {
       "base": "painter - per hour",
@@ -3049,6 +3049,127 @@
       "median_qty": 10.0,
       "median_unit_price": 1.14,
       "median_rcv": 13.93
+    },
+    {
+      "base": "roofing felt - synthetic underlayment - standard grade",
+      "description": "Roofing felt - synthetic underlayment - Standard grade",
+      "category": "ROOFING",
+      "unit": "SQ",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 8.91,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "fascia - metal - 4\"",
+      "description": "R&R Fascia - metal - 4\"",
+      "category": "SIDING",
+      "unit": "LF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 42.17,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "laminated - standard grd - comp. shingle rfg (per shingle)",
+      "description": "Remove Laminated - Standard grd - comp. shingle rfg (per SHINGLE)",
+      "category": "ROOFING",
+      "unit": "EA",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 235.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "closure strips for metal roofing - inside and/or outside missing quantity",
+      "description": "R&R Closure strips for metal roofing - inside and/or outside Missing quantity",
+      "category": "ROOFING",
+      "unit": "LF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 0.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "fascia - metal - 10\"",
+      "description": "R&R Fascia - metal - 10\"",
+      "category": "SIDING",
+      "unit": "LF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 73.59,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "fanfold foam insulation board - 1/4\"",
+      "description": "Fanfold foam insulation board - 1/4\"",
+      "category": "OTHER",
+      "unit": "SF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 506.55,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "downspout - aluminum - up to left 29lf front 10lf",
+      "description": "R&R Downspout - aluminum - up to Left 29LF Front 10LF",
+      "category": "GUTTERS",
+      "unit": "LF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 39.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "overhead door & hardware - 16' x 8' - standard grade",
+      "description": "R&R Overhead door & hardware - 16' x 8' - Standard grade",
+      "category": "WINDOWS/DOORS",
+      "unit": "EA",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 1.0,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "metal roofing - corrugated - 26 gauge - agricultural- galv",
+      "description": "R&R Metal roofing - corrugated - 26 gauge - Agricultural- galv",
+      "category": "ROOFING",
+      "unit": "SF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 98.95,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "aluminum rake/gable edge trim - color finish",
+      "description": "R&R Aluminum rake/gable edge trim - color finish",
+      "category": "ROOFING",
+      "unit": "LF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 16.49,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
+    },
+    {
+      "base": "wall/roof panel - ribbed - 29 gauge - up to 1\"",
+      "description": "R&R Wall/roof panel - ribbed - 29 gauge - up to 1\"",
+      "category": "ROOFING",
+      "unit": "SF",
+      "claim_frequency": 1,
+      "claim_fraction": 0.059,
+      "median_qty": 676.7,
+      "median_unit_price": 0.0,
+      "median_rcv": 0.0
     }
   ]
 }

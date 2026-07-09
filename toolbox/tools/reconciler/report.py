@@ -184,6 +184,44 @@ def _revisions_md(recon):
     return "\n".join(L)
 
 
+def _approved_md(recon):
+    """Approved items (effectiveness mode): lines the carrier added since its
+    original, and existing lines it raised toward the contractor."""
+    if recon.mode != "effectiveness":
+        return ""
+    added = recon.approved_added
+    revised = recon.approved_revised
+    L = ["## Approved items",
+         f"_Contractor scope the carrier put into its current estimate: "
+         f"{_money(recon.approved_dollars)} over the original._", ""]
+    if not added and not revised:
+        L.append("_None. The current estimate matches the original line for line._")
+        L.append("")
+        return "\n".join(L)
+    if added:
+        L.append(f"**Added lines ({len(added)})**")
+        L.append("")
+        L.append("| # | Item | Qty | Unit | RCV |")
+        L.append("|---:|---|---:|---|---:|")
+        for w in sorted(added, key=lambda x: -x.rcv):
+            L.append(f"| {w.number or ''} | {w.description} | {_qty(w.quantity)} | "
+                     f"{w.unit} | {_money(w.rcv)} |")
+        L.append("")
+    if revised:
+        L.append(f"**Raised lines ({len(revised)})**")
+        L.append("_Existing carrier lines the current estimate increased; net is the "
+                 "gain over the original._")
+        L.append("")
+        L.append("| # | Item | Was | Now | Net |")
+        L.append("|---:|---|---:|---:|---:|")
+        for w in revised:
+            L.append(f"| {w.number or ''} | {w.description} | "
+                     f"{_qty(w.from_quantity)}{w.unit} {_money(w.from_rcv)} | "
+                     f"{_qty(w.quantity)}{w.unit} {_money(w.rcv)} | {_signed(w.delta)} |")
+        L.append("")
+    return "\n".join(L)
+
+
 def render_markdown(recon):
     gap = round(recon.contractor_grand - recon.carrier_grand, 2)
     L = [f"# Reconciliation: {recon.claimant}", ""]
@@ -199,6 +237,10 @@ def render_markdown(recon):
     for n in recon.notes:
         L.append(f"> Note: {n}")
         L.append("")
+
+    appr = _approved_md(recon)
+    if appr:
+        L.append(appr)
 
     sects = _sections_md(recon)
     if sects:

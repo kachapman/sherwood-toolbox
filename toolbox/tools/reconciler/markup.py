@@ -98,12 +98,11 @@ class Severity:
     floor: float     # dollar impact at or above which this level applies
 
 
-# Under-measured quantity gaps use a warm orange->gold scale, kept clear of the
-# salmon (missing) / blue (outstanding) / green (approved) meanings above.
+# Under-measured quantity gaps use a red -> salmon -> amber scale by dollar size.
 SEVERITIES = (
-    Severity("major", (0.90, 0.45, 0.13), 2000.0),    # burnt orange
-    Severity("moderate", (0.94, 0.64, 0.20), 1000.0),  # amber
-    Severity("minor", (0.90, 0.78, 0.28), 0.0),        # gold
+    Severity("high", (0.80, 0.16, 0.14), 500.0),       # red:    >= $500
+    Severity("mid", (0.961, 0.592, 0.588), 150.0),     # salmon: $150 - $500
+    Severity("low", (0.95, 0.66, 0.20), 0.0),          # amber:  < $150
 )
 
 
@@ -220,30 +219,44 @@ def locate_items(doc, wanted):
 
 
 # === SECTION: in-line flags on the carrier pages ===
-FLAG_L = 6.0               # left-margin flag x-range
-FLAG_R = 30.0
+FLAG_L = 3.0               # left-margin flag x-range (widened to hold the $ gap)
+FLAG_R = 34.0
 BAND_INSET = 34.0         # highlight band left/right inset from the page edge
 
 
-def flag_row(page, rect, marker: int, sev: Severity):
-    """Highlight a located line item across its width and drop a numbered tab in
-    the left margin. The band is translucent so the priced line reads through."""
+def _flag_money(dollars, max_w):
+    """A compact RCV-gap label for the narrow left-margin tab: cents when they fit
+    (e.g. $839.89), whole dollars for a wide 4-digit gap that would overflow
+    (e.g. $1,036), shrinking the font toward 6 pt as a last resort. Returns
+    (label, fontsize)."""
+    cents = _money(round(dollars, 2))                 # $839.89
+    whole = ("-" if dollars < 0 else "") + f"${abs(round(dollars)):,}"  # $1,036
+    for label in (cents, whole):
+        for size in (8.0, 7.5, 7.0, 6.5, 6.0):
+            if fitz.get_text_length(label, "hebo", size) <= max_w:
+                return label, size
+    return whole, 6.0
+
+
+def flag_row(page, rect, gap_dollars, sev: Severity):
+    """Highlight a located line item across its width and print its RCV gap in the
+    left-margin tab. The band is translucent so the priced line reads through."""
     w = page.rect.width
     band = fitz.Rect(BAND_INSET, rect.y0 - 1.5, w - BAND_INSET, rect.y1 + 1.5)
     page.draw_rect(band, color=None, fill=sev.fill, fill_opacity=0.22)
     # thin left rule at the band edge for definition
     page.draw_line(fitz.Point(BAND_INSET, band.y0), fitz.Point(BAND_INSET, band.y1),
                    color=sev.fill, width=1.4)
-    # left-margin numbered tab (solid), only where the gutter is wide enough
-    if rect.x0 >= FLAG_R + 2:
+    # left-margin tab carrying the RCV-gap dollars, where the gutter is wide enough
+    if rect.x0 >= FLAG_R + 1:
         tab = fitz.Rect(FLAG_L, rect.y0 - 1.0, FLAG_R, rect.y1 + 1.0)
         page.draw_rect(tab, color=None, fill=sev.fill, fill_opacity=1.0, radius=0.25)
-        label = str(marker)
-        tw = fitz.get_text_length(label, "hebo", 8)
+        label, size = _flag_money(gap_dollars, (FLAG_R - FLAG_L) - 3)
+        tw = fitz.get_text_length(label, "hebo", size)
         cx = FLAG_L + (FLAG_R - FLAG_L - tw) / 2
-        cy = (rect.y0 + rect.y1) / 2 + 2.9
-        page.insert_text(fitz.Point(cx, cy), label, fontname="hebo", fontsize=8,
-                         color=WHITE)
+        cy = (rect.y0 + rect.y1) / 2 + size * 0.36
+        page.insert_text(fitz.Point(cx, cy), label, fontname="hebo", fontsize=size,
+                         color=_readable_on(sev.fill))
 
 
 def tag_won(page, rect):
@@ -394,10 +407,20 @@ def paint_outstanding_by_section(doc, missing, located_all, sec_of, sch, section
             order.append(sec)
         groups[sec].append(s)
 
-    page_cursor = {}
-    painted = 0
+    # Resolve each section's anchor, then paint top-to-bottom within each page. The
+    # per-page cursor only stacks correctly in reading order: painting in dollar
+    # order lets a block anchored low on a page (e.g. Left Elevation at the page
+    # foot) advance the cursor past the page bottom, so a block anchored higher on
+    # the same page (Back, Right) then finds no room and silently drops.
+    placements = []
     for sec in order:
         pno, rect = _anchor_for_section(sec, carrier_secs, fallback)
+        placements.append((pno, rect.y1, sec, rect))
+    placements.sort(key=lambda p: (p[0], p[1]))
+
+    page_cursor = {}
+    painted = 0
+    for pno, _y, sec, rect in placements:
         page = doc.load_page(pno)
         start_y = max(rect.y1 + 2.5, page_cursor.get(pno, 0.0))
         bottom, n = paint_block(page, sec, groups[sec], start_y, sch, section_net.get(sec))
@@ -635,14 +658,38 @@ def _caution_para(c, text):
     c.y = top + box_h + 8
 
 
+def _effectiveness_headline(c, recon):
+    """One sage panel carrying the APPROVAL EFFECTIVENESS label, the big percentage,
+    and the money-summary sentence (the first, non-caution, narrative line)."""
+    pct = f"{recon.effectiveness * 100:.0f}%"
+    body = next((s["text"] for s in recon.narrative if s.get("tone") != "caution"), "")
+    inner = PAGE_W - 2 * MARGIN - 28
+    lines = c._wrapped_lines(body, "helv", 10.5, inner) if body else 0
+    box_h = 50 + lines * 13 + 12
+    c.space(box_h + 6)
+    top = c.y
+    c.page.draw_rect(fitz.Rect(MARGIN, top, PAGE_W - MARGIN, top + box_h),
+                     color=None, fill=SAGE, fill_opacity=1.0)
+    c.page.draw_line(fitz.Point(MARGIN, top), fitz.Point(MARGIN, top + box_h),
+                     color=GREEN, width=3)
+    c.page.insert_text(fitz.Point(MARGIN + 14, top + 17), "APPROVAL EFFECTIVENESS",
+                       fontname="hebo", fontsize=8.5, color=MUTED)
+    c.page.insert_text(fitz.Point(MARGIN + 14, top + 42), pct, fontname="hebo",
+                       fontsize=22, color=GREEN)
+    if body:
+        c.y = top + 50
+        c.text(body, size=10.5, x=MARGIN + 14, width=inner, color=INK, gap=0)
+    c.y = top + box_h + 10
+
+
 def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_count,
                            won_count):
-    c.heading(f"Approval effectiveness - {recon.claimant}", size=17)
-    _narrative_block(c, recon)
-
-    pct = f"{recon.effectiveness * 100:.0f}%"
-    _headline_box(c, "APPROVAL EFFECTIVENESS", pct,
-                  f"of the {_money(recon.ask_dollars)} the contractor is over the original")
+    c.heading(f"Reconciliation report - {recon.claimant}", size=17)
+    _effectiveness_headline(c, recon)
+    caution = next((s["text"] for s in recon.narrative if s.get("tone") == "caution"), None)
+    if caution:
+        _caution_para(c, caution)
+    c.y += 4
 
     _totals3(c, ["Approved to date (original to current)", "Still unapproved",
                  "Contractor over original"],
@@ -658,9 +705,13 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
 
     c.rule()
     c.subheading("What the markup shows")
-    c.text(f"-  {won_count} supplement items have been approved: they are in the "
-           f"carrier's current estimate but not its original. Green check on the "
-           f"carrier pages.", size=10, gap=6)
+    n_add = len(recon.approved_added)
+    n_rev = len(recon.approved_revised)
+    rev_clause = (f", plus {n_rev} existing line{'s' if n_rev != 1 else ''} it "
+                  f"raised toward the contractor" if n_rev else "")
+    c.text(f"-  {n_add} supplement line{'s' if n_add != 1 else ''} the carrier added "
+           f"since its original{rev_clause}: {won_count} checked in green in place on "
+           f"the carrier pages.", size=10, gap=6)
     c.text(f"-  {len(missing)} items are still unapproved: {painted_count} painted in "
            f"blue on the carrier pages by section, keyed to the contractor line "
            f'number. Full list under "Outstanding scope" at the back.', size=10, gap=6)
@@ -701,7 +752,7 @@ def _flagged_line(c, flagged, located_count):
     if n:
         c.text(f"-  The carrier measured {n} shared line{'s' if n != 1 else ''} short "
                f"of the contractor; {located_count} are highlighted on the carrier "
-               f'pages, keyed to the "Quantity differences" table.', size=10, gap=6)
+               f"pages, each showing its RCV gap in the margin.", size=10, gap=6)
     else:
         c.text("-  The carrier's quantities match the contractor on every shared line.",
                size=10, gap=6)
@@ -722,11 +773,11 @@ def _legend(c, effectiveness):
     else:
         _legend_row(c, MISSING, "Missing: contractor scope the carrier estimate omits",
                     opacity=1.0)
-    _legend_row(c, SEVERITIES[0].fill, "Carrier short by $2,000 or more on a shared line")
-    _legend_row(c, SEVERITIES[1].fill, "Carrier short by $1,000 to $2,000 on a shared line")
-    _legend_row(c, SEVERITIES[2].fill, "Carrier short by under $1,000 on a shared line")
-    c.text("A left-margin tab marks each highlighted line; the coloured blocks carry "
-           "the contractor line number.", size=8.5, color=MUTED, gap=6)
+    _legend_row(c, SEVERITIES[0].fill, "Carrier short by $500 or more on a shared line")
+    _legend_row(c, SEVERITIES[1].fill, "Carrier short by $150 to $500 on a shared line")
+    _legend_row(c, SEVERITIES[2].fill, "Carrier short by under $150 on a shared line")
+    c.text("Each highlighted line shows its RCV gap in the left margin; the coloured "
+           "blocks carry the contractor line number.", size=8.5, color=MUTED, gap=6)
 
 
 def _summary_footer(c, recon):
@@ -787,19 +838,19 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
     # --- Quantity differences (decodes the in-line flags) ---
     c.heading("Quantity differences")
     c.text("Line items both estimates carry where the carrier measured short of the "
-           "contractor. The tab number matches the highlight on the carrier page in "
-           "the last column; the RCV gap is that shortfall in dollars.",
-           size=9, color=MUTED, gap=8)
+           "contractor. The RCV gap is that shortfall in dollars; it is printed in the "
+           "left margin of the highlighted line on the carrier page shown in the last "
+           "column.", size=9, color=MUTED, gap=8)
     if flagged:
-        cols = [30, 150, 52, 52, 52, 78, 42]
-        heads = ["#", "Item", "Carrier", "Contr.", "Diff qty", "RCV gap", "Page"]
-        aligns = [1, 0, 2, 2, 2, 2, 2]
+        cols = [180, 52, 52, 52, 78, 42]
+        heads = ["Item", "Carrier", "Contr.", "Diff qty", "RCV gap", "Page"]
+        aligns = [0, 2, 2, 2, 2, 2]
         c.row(heads, cols, head=True, size=8.5, color=GREEN, fill=SAGE, aligns=aligns)
-        for i, f in enumerate(flagged, start=1):
+        for f in flagged:
             loc = page_of.get(f.carrier_number)
             pref = f"p.{loc}" if loc else "-"
             unit = f.unit or ""
-            c.row([str(i), f.description,
+            c.row([f.description,
                    f"{_qty(f.carrier_quantity)} {unit}".strip(),
                    f"{_qty(f.contractor_quantity)} {unit}".strip(),
                    _signed_qty(f.quantity_delta),
@@ -868,23 +919,46 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
 
 
 def _approved_section(c, recon):
-    """Supplement items the carrier has approved since the original estimate."""
-    wins = recon.approved_wins
+    """Supplement items the carrier approved since the original estimate: brand-new
+    lines it added, and existing lines it raised toward the contractor scope. Both
+    are checked in green on the carrier pages."""
+    added = recon.approved_added
+    revised = recon.approved_revised
     c.heading("Approved items")
-    c.text(f"Line items in the carrier's current estimate that were not in its "
-           f"original: {_money(recon.approved_dollars)} of contractor scope approved, "
-           f"checked in green on the carrier pages.", size=9, color=MUTED, gap=8)
-    if not wins:
+    c.text(f"Contractor scope the carrier put into its current estimate, "
+           f"{_money(recon.approved_dollars)} approved over the original, checked in "
+           f"green on the carrier pages. \"Added\" is a new line; \"raised\" is an "
+           f"existing line the carrier increased toward the contractor.",
+           size=9, color=MUTED, gap=8)
+    if not added and not revised:
         c.text("None. The carrier's current estimate matches its original line for "
                "line.", size=9.5, color=MUTED)
         return
-    cols = [34, 300, 56, 40, 78]
-    aligns = [1, 0, 2, 0, 2]
-    c.row(["#", "Item", "Qty", "Unit", "RCV"], cols, head=True, size=8.5,
-          color=APPROVED, fill=SAGE, aligns=aligns)
-    for w in sorted(wins, key=lambda x: -x.rcv):
-        c.row([str(w.number or ""), w.description, _qty(w.quantity), w.unit,
-               _money(w.rcv)], cols, size=8.5, aligns=aligns)
+
+    if added:
+        c.subheading(f"Added lines ({len(added)})", color=APPROVED)
+        cols = [34, 300, 56, 40, 78]
+        aligns = [1, 0, 2, 0, 2]
+        c.row(["#", "Item", "Qty", "Unit", "RCV"], cols, head=True, size=8.5,
+              color=APPROVED, fill=SAGE, aligns=aligns)
+        for w in sorted(added, key=lambda x: -x.rcv):
+            c.row([str(w.number or ""), w.description, _qty(w.quantity), w.unit,
+                   _money(w.rcv)], cols, size=8.5, aligns=aligns)
+
+    if revised:
+        c.subheading(f"Raised lines ({len(revised)})", color=APPROVED)
+        c.text("Existing carrier lines the current estimate increased. The net is the "
+               "gain over the original, not the full line RCV.", size=8.5,
+               color=MUTED, gap=6)
+        cols = [26, 168, 96, 96, 58]
+        aligns = [1, 0, 2, 2, 2]
+        c.row(["#", "Item", "Was", "Now", "Net"], cols, head=True, size=8.5,
+              color=APPROVED, fill=SAGE, aligns=aligns)
+        for w in revised:
+            c.row([str(w.number or ""), w.description,
+                   f"{_qty(w.from_quantity)}{w.unit} {_money(w.from_rcv)}",
+                   f"{_qty(w.quantity)}{w.unit} {_money(w.rcv)}",
+                   _signed_money(w.delta)], cols, size=8, aligns=aligns)
 
 
 def _grade_revisions_section(c, recon):
@@ -998,17 +1072,18 @@ def mark_up_carrier(carrier, recon, out_path: str) -> dict:
     # off the approved wins.
     located_all = locate_items(doc, {it.number: it.description for it in carrier.items})
     sec_of = {it.number: it.section for it in carrier.items}
-    marker_by_num = {f.carrier_number: i for i, f in enumerate(flagged, start=1)}
 
-    # Highlight each located, under-measured line in place, coloured by its shortfall.
+    # Highlight each located, under-measured line in place, coloured by its shortfall
+    # and labelled with the RCV gap in the margin.
     located_flagged = {}
     for f in flagged:
         loc = located_all.get(f.carrier_number)
         if not loc:
             continue
         located_flagged[f.carrier_number] = loc
-        sev = severity_for(f.quantity_delta * f.contractor_unit_price)
-        flag_row(doc.load_page(loc[0]), loc[1], marker_by_num[f.carrier_number], sev)
+        gap = round(f.quantity_delta * f.contractor_unit_price, 2)
+        sev = severity_for(gap)
+        flag_row(doc.load_page(loc[0]), loc[1], gap, sev)
 
     # Check off approved wins (current-carrier lines new since the original).
     won_count = 0

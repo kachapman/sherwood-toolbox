@@ -68,6 +68,8 @@ def _snapshot(recon, *, markup_stats, sides, warnings) -> dict:
             "outstanding": recon.outstanding_dollars,
             "rate": recon.effectiveness,
             "approved_wins": [asdict(w) for w in recon.approved_wins],
+            "approved_added": [asdict(w) for w in recon.approved_added],
+            "approved_revised": [asdict(w) for w in recon.approved_revised],
         }
     return snap
 

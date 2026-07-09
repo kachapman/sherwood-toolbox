@@ -68,6 +68,24 @@ class Suggestion:
 
 
 @dataclass
+class ApprovedRevision:
+    """A carrier line the current estimate raised over its original: the same item,
+    a higher quantity or price. Counts as an approval because the carrier moved that
+    line toward the contractor scope. All figures are as printed."""
+    number: int
+    description: str
+    category: str
+    unit: str
+    quantity: float           # current-carrier quantity
+    rcv: float                # current-carrier RCV
+    from_quantity: float      # original-carrier quantity
+    from_rcv: float           # original-carrier RCV
+    delta: float              # current RCV - original RCV (the dollars approved on this line)
+    contractor_quantity: float = 0.0  # matching contractor line, when found
+    contractor_rcv: float = 0.0
+
+
+@dataclass
 class SharedItem:
     """A line item both estimates carry, with the price and quantity breakdown.
     All figures are pulled from the two estimates as printed."""
@@ -114,7 +132,9 @@ class Recon:
     approved_dollars: float = 0.0     # current carrier over the original (won to date)
     outstanding_dollars: float = 0.0  # supplement still not in the current carrier
     effectiveness: float = 0.0        # approved / ask, by grand-total dollars
-    approved_wins: list = field(default_factory=list)  # current-carrier LineItems new vs OG
+    approved_wins: list = field(default_factory=list)  # current-carrier LineItems approved (added + revised)
+    approved_added: list = field(default_factory=list)  # subset: brand-new current-carrier lines
+    approved_revised: list = field(default_factory=list)  # ApprovedRevision: raised existing lines
     narrative: list = field(default_factory=list)  # plain-language summary [{text, tone}]
     # Section-total reconciliation: the outstanding per contractor section is the
     # difference of the printed section subtotals, so grade revisions (a renamed
@@ -305,7 +325,11 @@ def coverage_limit_hypothesis(carrier, contractor, missing, og=None):
         return (getattr(m, "rcv", 0.0) if v is None else v) or 0.0
     ext_missing_rcv = round(sum(_dollars(m) for m in ext_missing), 2)
     amount = ext_outstanding if ext_outstanding >= 1 else ext_missing_rcv
-    if not ext_missing and amount < 1 and not has_sublimit:
+    # No secondary-structure scope is missing or outstanding: nothing to caution.
+    # A sublimit coverage merely *named* in the standard coverage recap (a
+    # "BB-Other Structures $0.00" bucket) is not a limit in play, so has_sublimit
+    # alone must not raise a "$0 of scope" warning.
+    if not ext_missing and amount < 1:
         return None
 
     # Divergent approval rate on the secondary structure (needs the original).
@@ -369,16 +393,20 @@ def build_narrative(recon):
 
     if recon.mode == "effectiveness":
         pct = round(recon.effectiveness * 100)
-        won = len(recon.approved_wins)
+        n_add = len(recon.approved_added)
+        n_rev = len(recon.approved_revised)
         out_count = sum(1 for s in recon.suggestions if s.status == "MISSING")
         out.append({"tone": "normal", "text":
             f"The contractor supplement is {_money0(recon.ask_dollars)} higher than the "
             f"carrier's original estimate. The carrier has approved {_money0(recon.approved_dollars)} "
             f"so far, or {pct}% of it. {_money0(recon.outstanding_dollars)} of scoped work is "
             f"still unapproved."})
+        rev_clause = (f" and raised {n_rev} existing line{'s' if n_rev != 1 else ''} "
+                      f"toward the contractor" if n_rev else "")
         out.append({"tone": "normal", "text":
-            f"{won} supplement items have been approved into the carrier estimate, checked in "
-            f"green. {out_count} are still missing, painted in blue on the carrier pages, each "
+            f"The carrier added {n_add} new supplement line{'s' if n_add != 1 else ''}{rev_clause}, "
+            f"checked in green on the carrier pages. {out_count} contractor "
+            f"line{'s are' if out_count != 1 else ' is'} still missing, painted in blue and each "
             f"keyed to the contractor line that carries it."})
         if clh:
             out.append({"tone": "caution", "text": _secondary_caution(clh)})
@@ -408,8 +436,9 @@ def _secondary_caution(clh):
     return (
         f"One caution. {_money0(clh.dollars)} of the missing scope is on a secondary "
         f"structure (a detached building, shed, or garage). If the policy caps that "
-        f"structure with a separate limit, scope pushed past the limit does not raise "
-        f"the payout. Check the remaining limit before pursuing those items.")
+        f"structure with a separate limit, anything on the scope that is pushed past the "
+        f"limit would not necessarily raise the payout. Check the remaining limit before "
+        f"pursuing those items.")
 
 
 # --------------------------------------------------------------------------- #
@@ -436,8 +465,20 @@ def map_and_diff_sections(carrier, contractor, matched):
     k_names = list(kt.keys())
 
     def map_carrier_sec(cs):
-        if votes.get(cs):
-            return votes[cs].most_common(1)[0][0]
+        v = votes.get(cs)
+        if v:
+            top = v.most_common()
+            best_n = top[0][1]
+            tied = [name for name, n in top if n == best_n]
+            if len(tied) == 1:
+                return tied[0]
+            # Tie: prefer the contractor section whose name overlaps the carrier's,
+            # so a carrier "Left Elevation" maps to contractor "Left Elevation" and
+            # not "Back Elevation" (both share "elevation"). Without this the tie
+            # breaks on insertion order and a whole elevation's subtotal is misrouted,
+            # zeroing one section's net and inflating another's.
+            toks = section_tokens(cs)
+            return max(tied, key=lambda kn: len(toks & section_tokens(kn)))
         toks = section_tokens(cs)
         best, best_n = None, 0
         for kn in k_names:
@@ -641,9 +682,44 @@ def reconcile_effectiveness(og, carrier, contractor, claimant, playbook=None):
     r.effectiveness = (round(r.approved_dollars / r.ask_dollars, 4)
                        if r.ask_dollars > 0 else 0.0)
 
-    # Approved wins: current-carrier line items not present in the original.
-    _, approved_wins, _ = match_line_items(og.items, carrier.items)
-    r.approved_wins = approved_wins
+    # Approved items = the supplement scope the carrier put into its current
+    # estimate, and the user's definition is "added or revised": a brand-new line,
+    # OR an existing line the carrier raised toward the contractor scope. Matching
+    # og -> current, the unmatched current lines are the additions; matched pairs
+    # whose RCV rose are the revisions. (match returns (current_item, og_item).)
+    matched_oc, added, _dropped = match_line_items(og.items, carrier.items)
+    r.approved_added = list(added)
+
+    # Index the contractor scope so a raised line can name the contractor line it
+    # moved toward (evidence the revision is supplement-driven, not a price bump).
+    con_by_base = {}
+    for it in contractor.items:
+        if not getattr(it, "superseded", False):
+            con_by_base.setdefault(it.base, []).append(it)
+
+    revised = []
+    for cur, og_it in matched_oc:
+        delta = round(cur.rcv - og_it.rcv, 2)
+        if delta < 1.0:                       # only lines the carrier raised
+            continue
+        cq = cr = 0.0
+        cand = con_by_base.get(cur.base) or []
+        if cand:                              # closest contractor quantity
+            best = min(cand, key=lambda c: abs(c.quantity - cur.quantity))
+            cq, cr = best.quantity, best.rcv
+        revised.append(ApprovedRevision(
+            number=cur.number, description=cur.description, category=cur.category,
+            unit=cur.unit, quantity=cur.quantity, rcv=cur.rcv,
+            from_quantity=og_it.quantity, from_rcv=og_it.rcv, delta=delta,
+            contractor_quantity=cq, contractor_rcv=cr))
+    revised.sort(key=lambda x: -x.delta)
+    r.approved_revised = revised
+
+    # approved_wins drives the in-place green checks and the headline count: every
+    # current-carrier line that is an approval (each added line + each raised line).
+    revised_nums = {x.number for x in revised}
+    r.approved_wins = list(added) + [it for it in carrier.items
+                                     if it.number in revised_nums]
 
     # Recompute the sublimit hypothesis with the original estimate so the divergent
     # approval-rate signal (a frozen secondary structure) can be measured.

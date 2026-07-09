@@ -284,6 +284,8 @@ def run():
                 "outstanding": recon.outstanding_dollars,
                 "rate": recon.effectiveness,
                 "approved_wins": stats.get("approved_wins", 0),
+                "approved_added": len(recon.approved_added),
+                "approved_revised": len(recon.approved_revised),
                 "won_tagged": stats.get("won_tagged", 0),
             }
         return jsonify(payload)

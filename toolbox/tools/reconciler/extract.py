@@ -681,12 +681,115 @@ def _page_layout_text(page) -> str:
     return "\n".join(lines)
 
 
+# Pages that are printed inside a carrier estimate but are not part of its scope,
+# and must never be parsed for line items or totals. The Allstate "National
+# Catastrophe Team" (and similar) estimates append a two-page "Your guide to
+# reading your adjuster summary" against a fictitious insured (John Smith, 1234 Oak
+# Street, Anytown) with sample line items (a refrigerator, a coffee table, a
+# Samsung TV, a Sony DVD player). Parsing that page invents scope that is not in the
+# claim and misreads the sample's own totals as the estimate's. Detected by the
+# guide header, or by two independent canned-placeholder hits, so a real page is
+# never dropped.
+_SAMPLE_HEADER = re.compile(r"guide\s+to\s+reading\s+your", re.I)
+_SAMPLE_PLACEHOLDER = re.compile(
+    r"john\s+smith|1234\s+oak\s+street|any\s*town,?\s*any\s*state|"
+    r"1234567890|coffeetable|gie16gshss", re.I)
+
+
+def _is_boilerplate_page(page_text: str) -> bool:
+    """True for a sample/legend/guide page that prints placeholder scope. Whitespace
+    is collapsed first because the layout grid letter-spaces the guide's title."""
+    flat = _WS.sub(" ", page_text or "")
+    if _SAMPLE_HEADER.search(flat):
+        return True
+    return len({m.group(0).lower() for m in _SAMPLE_PLACEHOLDER.finditer(flat)}) >= 2
+
+
+# A page worth keeping in a stripped training copy: it carries line items, a totals
+# / recap / coverage-summary row, or the carrier's coverage language. Everything
+# else in an estimate PDF is a photo sheet, a sketch/diagram, a blank, or the sample
+# guide page, none of which the parser reads.
+_KEEP_KEYWORDS = ("Totals:", "Total:", "Line Item Total", "Recap by",
+                  "Replacement Cost Value", "Net Claim", "Summary for",
+                  "Grand Total", "Coverage")
+
+
+def _page_image_fraction(page) -> float:
+    """Fraction of the page area covered by embedded raster images (a photo sheet
+    runs high; a priced page is near zero)."""
+    try:
+        blocks = page.get_text("rawdict").get("blocks", [])
+    except Exception:
+        return 0.0
+    area = 0.0
+    for b in blocks:
+        if b.get("type") == 1 and b.get("bbox"):
+            x0, y0, x1, y1 = b["bbox"]
+            area += max(0.0, (x1 - x0)) * max(0.0, (y1 - y0))
+    parea = page.rect.width * page.rect.height
+    return area / parea if parea else 0.0
+
+
+def classify_page(page):
+    """Classify one PDF page as ('keep', kind) or ('strip', kind).
+
+    Estimate content is kept first, so a priced page that also carries a logo or a
+    dense sketch is never mistaken for a photo/diagram sheet. Only pages with no
+    line items and no summary text are eligible to strip: the sample guide page,
+    photo sheets (a large embedded image), vector sketches (a dense drawing with no
+    priced rows), and blanks.
+    """
+    raw = page.get_text("text")
+    lay = _page_layout_text(page)
+    n_items = sum(1 for ln in lay.splitlines()
+                  if HEADER_XACT.match(ln) or HEADER_SYMB.match(ln))
+    if not _is_boilerplate_page(raw) and not _is_boilerplate_page(lay):
+        if n_items >= 1:
+            return "keep", "items"
+        if any(k in raw for k in _KEEP_KEYWORDS) or extract_statements(lay):
+            return "keep", "totals"
+    if _is_boilerplate_page(raw) or _is_boilerplate_page(lay):
+        return "strip", "sample"
+    if _page_image_fraction(page) >= 0.15:
+        return "strip", "photo"
+    try:
+        n_draw = len(page.get_drawings())
+    except Exception:
+        n_draw = 0
+    if n_draw >= 120:
+        return "strip", "sketch"
+    if len(_WS.sub("", raw)) < 15:
+        return "strip", "blank"
+    return "keep", "text"
+
+
+def estimate_page_indexes(path: str):
+    """0-based indexes of the pages worth keeping in a stripped copy of `path`,
+    with a per-kind tally. Returns (keep_indexes, counts)."""
+    keep, counts = [], {}
+    with fitz.open(path) as doc:
+        for i, page in enumerate(doc):
+            action, kind = classify_page(page)
+            counts[kind] = counts.get(kind, 0) + 1
+            if action == "keep":
+                keep.append(i)
+    return keep, counts
+
+
 def _extract_text(path: str) -> str:
     """Native text layer via PyMuPDF, row-reconstructed to mimic poppler's
-    `pdftotext -layout`. Replaces the poppler shell-out with no dependency."""
+    `pdftotext -layout`. Replaces the poppler shell-out with no dependency. Sample
+    "guide to reading" pages with placeholder scope are dropped before parsing."""
     try:
         with fitz.open(path) as doc:
-            return "\n".join(_page_layout_text(page) for page in doc)
+            pages = []
+            for page in doc:
+                lay = _page_layout_text(page)
+                if _is_boilerplate_page(page.get_text("text")) or \
+                        _is_boilerplate_page(lay):
+                    continue
+                pages.append(lay)
+            return "\n".join(pages)
     except Exception:
         return ""
 
@@ -768,16 +871,30 @@ EXT_SECTION = re.compile(
 EXT_DESC = re.compile(
     r"metal roof|ribbed|wall/roof panel|r-?panel|corrugated|purlin|closure strip|"
     r"metal building|pole barn", re.I)
+# "garage door", "garage floor", "garage door opener", "(garage) door" name a
+# dwelling component, not a detached garage; an attached garage is Coverage A, so
+# these must not read as secondary-structure scope. \W+ spans the parenthesis and
+# space in "Overhead (garage) door opener".
+_DWELLING_COMPONENT = re.compile(r"garage\W+(?:door|floor|opener|slab)", re.I)
 
 
 def is_extension_item(section: str, description: str) -> bool:
     """True when a line item belongs to a secondary structure a dwelling-extension
     / other-structures sublimit covers, rather than the main dwelling. The structure
     name (barn, shed, detached garage) is matched in either the section or the
-    description; metal-building materials count only in the description."""
+    description; metal-building materials count only in the description. A "garage
+    door / floor" description is a dwelling component and does not count."""
     sec, desc = section or "", description or ""
-    return bool(EXT_SECTION.search(sec) or EXT_SECTION.search(desc)
-                or EXT_DESC.search(desc))
+    if EXT_SECTION.search(sec) or EXT_DESC.search(desc):
+        return True
+    m = EXT_SECTION.search(desc)
+    if not m:
+        return False
+    # A structure word in the description names the structure unless it is a
+    # dwelling component like "garage door" (attached garage = Coverage A).
+    if m.group(0).lower() == "garage" and _DWELLING_COMPONENT.search(desc):
+        return False
+    return True
 
 
 # A separate, smaller coverage the estimate carves out: State Farm's "Dwelling
