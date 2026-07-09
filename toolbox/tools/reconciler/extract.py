@@ -136,6 +136,10 @@ QTY_UNIT = re.compile(r"([\d,]+\.\d{2})\s+([A-Za-z]{1,4})\b")
 # Depreciation is set off by parentheses '(x)' or angle brackets '<x>' depending
 # on the platform (Allstate uses parens, Smart Communications uses angle).
 DEPREC_MARK = re.compile(r"[\(<]\$?([\d,]+\.\d{2})[\)>]")
+# A revised line: the contractor leaves the original in place with its price cells
+# replaced by the literal text "SEE REVISION" and adds the corrected line later. In
+# layout text this lands at the end of the item row, so match it as a substring.
+SEE_REVISION = re.compile(r"SEE\s+REVISION", re.I)
 
 # A single "data column" token: money, quantity, age/life, percentage, unit, or
 # one of the fixed condition words. Used to recognise wrapped numeric lines.
@@ -203,6 +207,17 @@ def _is_desc_cont(line: str) -> bool:
     return True
 
 
+def _is_superseded_desc_cont(line: str) -> bool:
+    """A wrapped description fragment on a SEE REVISION row, where the continuation
+    may start uppercase (e.g. "Agricultural", "Agricultural - galv"). Kept strict:
+    a short, mostly-alphabetic fragment carrying no money, so the superseded line's
+    base key stays complete enough to exact-match the carrier item it revises."""
+    s = line.strip()
+    if not s or len(s) > 40 or MONEY.search(s) or _is_note(line):
+        return False
+    return bool(re.match(r"^[A-Za-z][A-Za-z0-9 ./&-]*$", s))
+
+
 # --------------------------------------------------------------------------- #
 # Line item
 # --------------------------------------------------------------------------- #
@@ -222,6 +237,7 @@ class LineItem:
     acv: float
     category: str
     section: str = ""      # estimate section (e.g. "Front Elevation"), from Totals
+    superseded: bool = False  # a "SEE REVISION" original, kept as a revision record (rcv=0)
 
 
 # A section ends with a 'Totals: <name>' line (clean across Xactimate and
@@ -247,8 +263,10 @@ def _section_for(idx, marks):
     return ""
 
 
-def _finish_item(number, desc_parts, data_text):
-    """Build a LineItem from a description and its numeric record, or None."""
+def _finish_item(number, desc_parts, data_text, superseded=False):
+    """Build a LineItem from a description and its numeric record, or None. A
+    superseded ("SEE REVISION") row keeps its description and quantity but carries no
+    price, so it is recorded with rcv=0 as a revision marker instead of being dropped."""
     qm = QTY_UNIT.search(data_text)
     if not qm:
         return None
@@ -258,6 +276,13 @@ def _finish_item(number, desc_parts, data_text):
     after = data_text[qm.end():]
     monies = MONEY.findall(after)
     if not monies:
+        if superseded or SEE_REVISION.search(data_text):
+            desc = _WS.sub(" ", " ".join(p for p in desc_parts if p).strip())
+            return LineItem(
+                number=number, description=desc, norm_desc=normalize_desc(desc),
+                base=base_key(desc), action=split_action(desc)[0],
+                quantity=_num(qm.group(1)), unit=unit, unit_price=0.0, rcv=0.0,
+                deprec=0.0, acv=0.0, category=infer_category(desc), superseded=True)
         return None
     vals = [_num(t) for t in monies]
     acv = vals[-1]
@@ -302,6 +327,10 @@ def _parse_xactimate(lines):
         qm = QTY_UNIT.search(head_rest)
         desc_parts = [head_rest[:qm.start()] if qm else head_rest]
         record = [head_rest]
+        # A revised original carries "SEE REVISION" in its price cells (usually on the
+        # item row itself in layout text). Flagging it now lets the loop pick up an
+        # uppercase description continuation (e.g. "Agricultural") that follows.
+        superseded = bool(SEE_REVISION.search(head_rest))
 
         j = start + 1
         while j < end:
@@ -313,7 +342,12 @@ def _parse_xactimate(lines):
                     break
                 j += 1
                 continue
-            if _is_desc_cont(ln):
+            if SEE_REVISION.search(ln):
+                # "SEE REVISION" on its own line (reading-order fallback): mark the
+                # item and keep reading for a wrapped description fragment.
+                superseded = True
+                record.append(ln.strip())
+            elif _is_desc_cont(ln) or (superseded and _is_superseded_desc_cont(ln)):
                 desc_parts.append(ln.strip())
                 record.append(ln.strip())
             elif _is_data_cont(ln):
@@ -322,7 +356,7 @@ def _parse_xactimate(lines):
                 break
             j += 1
 
-        item = _finish_item(number, desc_parts, " ".join(record))
+        item = _finish_item(number, desc_parts, " ".join(record), superseded=superseded)
         if item:
             item.section = _section_for(start, marks)
             items.append(item)
@@ -422,6 +456,37 @@ def _fnum(s):
     return float(s.replace(",", ""))
 
 
+def _rcv_from_row(nums):
+    """The RCV column of a totals/recap row: the value V with a following
+    depreciation D and actual-cash-value A such that V - D = A. Returns the largest
+    such V, or None when the pattern is absent (money-column count varies by carrier:
+    3, 4, or 5 columns, so a fixed index is wrong)."""
+    best = None
+    for i in range(len(nums) - 2):
+        V, D, A = nums[i], nums[i + 1], nums[i + 2]
+        if V > 0 and abs((V - D) - A) < 0.02 and (best is None or V > best):
+            best = V
+    return best
+
+
+def _section_totals(lines):
+    """Printed RCV subtotal per leaf section, from the plural 'Totals: <name>' lines
+    (the same delimiter used for section names; singular 'Total:' rollups are
+    excluded, so nothing is double-counted). Duplicate leaf names (e.g. an empty
+    'Front Elevation' under one structure and a real one under another) are summed."""
+    out = {}
+    for ln in lines:
+        m = TOTALS_LINE.match(ln)
+        if not m:
+            continue
+        nums = [_fnum(x) for x in _MONEY_TOK.findall(ln)]
+        rcv = _rcv_from_row(nums)
+        if rcv is None:
+            rcv = max(nums) if nums else 0.0
+        out[m.group(1).strip()] = round(out.get(m.group(1).strip(), 0.0) + rcv, 2)
+    return out
+
+
 def grand_rcv(text: str, line_sum: float) -> float:
     """The estimate's grand Replacement Cost Value (includes tax and O&P).
 
@@ -449,10 +514,9 @@ def grand_rcv(text: str, line_sum: float) -> float:
     best = None
     for row in LINE_ITEM_TOTALS_ROW.findall(text):
         nums = [_fnum(x) for x in _MONEY_TOK.findall(row)]
-        for i in range(len(nums) - 2):
-            V, D, A = nums[i], nums[i + 1], nums[i + 2]
-            if V > 0 and abs((V - D) - A) < 0.02 and (best is None or V > best):
-                best = V
+        r = _rcv_from_row(nums)
+        if r is not None and (best is None or r > best):
+            best = r
         if best is None and nums:
             best = max(nums)
     if best is not None:
@@ -757,6 +821,7 @@ class Estimate:
     image_only: bool = False       # native text layer was empty (a scan)
     statements: list = field(default_factory=list)  # quoted coverage limitations
     sublimit_coverages: list = field(default_factory=list)  # dwelling extension / other structures
+    section_totals: dict = field(default_factory=dict)  # leaf section name -> printed RCV subtotal
 
     def to_dict(self):
         d = asdict(self)
@@ -808,6 +873,7 @@ def extract_estimate(path: str, role: str) -> Estimate:
         image_only=image_only,
         statements=extract_statements(text),
         sublimit_coverages=detect_sublimit_coverages(text),
+        section_totals=_section_totals(text.splitlines()),
     )
 
 

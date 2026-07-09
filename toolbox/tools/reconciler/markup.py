@@ -298,14 +298,17 @@ def _paint_add_row(page, x0, x1, y, num, desc, qty, rcv, sch):
     _right(page, x1 - 4, base, rcv, "hebo", 8, sch.text)
 
 
-def paint_block(page, label, items, start_y, sch):
+def paint_block(page, label, items, start_y, sch, net=None):
     """Paint one section's items onto the page in the scheme's colours, starting at
-    `start_y` (below the anchor line). Returns (bottom_y, rows_painted). Rows that
-    will not fit above the footer are summarised in a final "+N more" line pointing
-    to the back-of-document list."""
+    `start_y` (below the anchor line). `net` is the section's net outstanding (the
+    section-subtotal difference); when given it heads the block instead of the raw
+    item sum, so a grade revision does not read as full new scope. Returns
+    (bottom_y, rows_painted); rows that will not fit are summarised in a "+N more"
+    line pointing to the back-of-document list."""
     x0, x1 = BAND_INSET, page.rect.width - BAND_INSET
     max_y = page.rect.height - ADD_BOTTOM_PAD
-    subtotal = round(sum(s.dollars for s in items), 2)
+    head_amt = f"{_money(net)} net" if net is not None else _money(
+        round(sum(s.dollars for s in items), 2))
     y = start_y
 
     # No room even for a one-line marker without hitting the footer: skip drawing;
@@ -318,14 +321,13 @@ def paint_block(page, label, items, start_y, sch):
         page.draw_rect(fitz.Rect(x0, y, x1, y + ADD_HEADER_H), color=None, fill=sch.accent,
                        fill_opacity=1.0)
         page.insert_text(fitz.Point(x0 + 6, y + 8.7),
-                         f"{sch.header} - {label}: {len(items)} items "
-                         f"({_money(subtotal)}), see the back",
-                         fontname="hebo", fontsize=7.5, color=sch.head_text)
+                         f"{sch.header} - {label}: {head_amt}, {len(items)} items, "
+                         f"see the back", fontname="hebo", fontsize=7.5, color=sch.head_text)
         return y + ADD_HEADER_H, 0
 
     page.draw_rect(fitz.Rect(x0, y, x1, y + ADD_HEADER_H), color=None, fill=sch.accent,
                    fill_opacity=1.0)
-    page.insert_text(fitz.Point(x0 + 6, y + 8.7), f"{sch.header} - {label}",
+    page.insert_text(fitz.Point(x0 + 6, y + 8.7), f"{sch.header} - {label}   ({head_amt})",
                      fontname="hebo", fontsize=7.5, color=sch.head_text)
     y += ADD_HEADER_H
 
@@ -366,13 +368,15 @@ def _anchor_for_section(sec, carrier_secs, fallback):
     return best if best is not None else fallback
 
 
-def paint_outstanding_by_section(doc, missing, located_all, sec_of, sch):
+def paint_outstanding_by_section(doc, missing, located_all, sec_of, sch, section_net=None):
     """Paint outstanding items onto the carrier pages in the scheme's colours,
     grouped by their supplement section and anchored below the matching carrier
-    section. Blocks on one page stack rather than overlap. Returns the number of
+    section. `section_net` maps a section name to its net outstanding, which heads
+    the block. Blocks on one page stack rather than overlap. Returns the number of
     items painted as full rows."""
     if not missing or not located_all:
         return 0
+    section_net = section_net or {}
 
     carrier_secs = {}
     for num, (pno, rect) in located_all.items():
@@ -396,7 +400,7 @@ def paint_outstanding_by_section(doc, missing, located_all, sec_of, sch):
         pno, rect = _anchor_for_section(sec, carrier_secs, fallback)
         page = doc.load_page(pno)
         start_y = max(rect.y1 + 2.5, page_cursor.get(pno, 0.0))
-        bottom, n = paint_block(page, sec, groups[sec], start_y, sch)
+        bottom, n = paint_block(page, sec, groups[sec], start_y, sch, section_net.get(sec))
         page_cursor[pno] = bottom + 3
         painted += n
     return painted
@@ -674,17 +678,20 @@ def _summary_recoverable(c, recon, flagged, missing, located_count, painted_coun
     c.text(f"Carrier: {recon.carrier_name}", size=8, color=MUTED, gap=1)
     c.text(f"Contractor: {recon.contractor_name}", size=8, color=MUTED, gap=8)
 
-    missing_dollars = round(sum(s.dollars for s in missing), 2)
+    # The reliable total is the grand-total gap (the headline), not the sum of the
+    # per-section diffs, which can drift by carrier scope in unmatched sections and
+    # by tax/O&P not carried into the leaf subtotals.
+    net_missing = round(max(0.0, recon.contractor_grand - recon.carrier_grand), 2)
     op = ("Carrier Overhead & Profit: " +
           ("applied" if recon.carrier_has_op else "NOT applied") +
           f".   Contractor: {'applied' if recon.contractor_has_op else 'not applied'}.")
     c.text(op, size=9.5, gap=10)
     c.rule()
     c.subheading("What the markup shows")
-    c.text(f"-  {len(missing)} contractor line items worth {_money(missing_dollars)} "
-           f"are missing from this carrier estimate: {painted_count} painted in salmon "
-           f'on the carrier pages by section. Full list under "Missing scope" at the '
-           f"back.", size=10, gap=6)
+    c.text(f"-  {len(missing)} contractor line items are missing from this carrier "
+           f"estimate, {_money(net_missing)} net of scope the carrier already carries "
+           f"in those sections: {painted_count} painted in salmon on the carrier pages "
+           f'by section. Full list under "Missing scope" at the back.', size=10, gap=6)
     _flagged_line(c, flagged, located_count)
     _legend(c, effectiveness=False)
 
@@ -802,6 +809,8 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
         c.text("None. The carrier's quantities match the contractor on every shared "
                "line.", size=9.5, color=MUTED)
 
+    _grade_revisions_section(c, recon)
+
     # --- Outstanding / missing scope, grouped by section (matches the painting) ---
     c.rule(gap=12)
     c.heading("Outstanding scope" if eff else "Missing scope")
@@ -823,13 +832,31 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
                 order.append(sec)
             groups[sec].append(s)
         for sec in order:
-            sub = round(sum(x.dollars for x in groups[sec]), 2)
-            c.subheading(f"{sec}   -   {_money(sub)}")
+            if sec in recon.section_outstanding:
+                head = f"{sec}   -   {_money(recon.section_outstanding[sec])} net"
+            else:
+                head = f"{sec}   -   {_money(round(sum(x.dollars for x in groups[sec]), 2))}"
+            c.subheading(head)
             c.row(["#", "Item", "Qty", "Unit", "RCV"], cols, head=True, size=8.5,
                   color=GREEN, fill=SAGE, aligns=aligns)
             for s in groups[sec]:
                 c.row([str(s.number or ""), s.description, _qty(s.quantity), s.unit,
                        _money(s.dollars)], cols, size=8.5, aligns=aligns)
+        # The section nets reconcile to the grand gap on a clean pair; when carrier
+        # scope sits in sections with no contractor match, or tax/O&P is outside the
+        # leaf subtotals, they drift. Name that so the section figures still tie to
+        # the headline.
+        sec_sum = round(sum(recon.section_outstanding.values()), 2)
+        gap = round(max(0.0, recon.contractor_grand - recon.carrier_grand), 2)
+        if recon.section_outstanding and abs(sec_sum - gap) >= 50:
+            extra = ""
+            if recon.section_unattributed >= 50:
+                extra = (f" including {_money(recon.section_unattributed)} of carrier "
+                         f"scope in sections with no contractor match")
+            c.text(f"Section nets total {_money(sec_sum)}; the reconciled figure is "
+                   f"{_money(gap)} after carrier scope the contractor did not rebuild "
+                   f"and tax/O&P outside the section subtotals{extra}.",
+                   size=8.5, color=MUTED, gap=6)
     else:
         c.text("None. The carrier estimate carries every contractor line item.",
                size=9.5, color=MUTED)
@@ -858,6 +885,28 @@ def _approved_section(c, recon):
     for w in sorted(wins, key=lambda x: -x.rcv):
         c.row([str(w.number or ""), w.description, _qty(w.quantity), w.unit,
                _money(w.rcv)], cols, size=8.5, aligns=aligns)
+
+
+def _grade_revisions_section(c, recon):
+    """Contractor lines that replace a carrier line under a different name (a grade
+    change, e.g. corrugated -> ribbed). The carrier carries the old item, so the net
+    is the price difference, not the full RCV."""
+    revs = [s for s in recon.suggestions if getattr(s, "replaces_number", 0)]
+    if not revs:
+        return
+    c.rule(gap=12)
+    c.heading("Grade revisions")
+    c.text("Contractor lines that replace a carrier line under a different name. The "
+           "carrier already carries the old item, so the net is the price difference, "
+           "not the full RCV.", size=9, color=MUTED, gap=8)
+    cols = [150, 62, 140, 60, 56]
+    aligns = [0, 2, 0, 2, 2]
+    c.row(["Contractor item", "RCV", "Replaces (carrier)", "RCV", "Net"], cols,
+          head=True, size=8.5, color=GREEN, fill=SAGE, aligns=aligns)
+    for s in sorted(revs, key=lambda s: -s.net_delta):
+        c.row([f"#{s.number} {s.description}", _money(s.dollars),
+               f"#{s.replaces_number} {s.replaces_desc}", _money(s.replaces_rcv),
+               _signed_money(s.net_delta)], cols, size=8, aligns=aligns)
 
 
 def _bridge_section(c, recon):
@@ -973,7 +1022,8 @@ def mark_up_carrier(carrier, recon, out_path: str) -> dict:
     # section. Salmon when there is no original estimate (scope the carrier omits),
     # blue when there is (scope still to pursue).
     sch = OUTSTANDING_SCHEME if recon.mode == "effectiveness" else MISSING_SCHEME
-    painted = paint_outstanding_by_section(doc, missing, located_all, sec_of, sch)
+    painted = paint_outstanding_by_section(doc, missing, located_all, sec_of, sch,
+                                           recon.section_outstanding)
 
     # A located item's final 1-based page = its original index, + 1 for the single
     # summary page prepended below, + 1 to make it 1-based. Appending the detail
@@ -992,7 +1042,9 @@ def mark_up_carrier(carrier, recon, out_path: str) -> dict:
         "missing_painted": painted,
         "approved_wins": len(getattr(recon, "approved_wins", [])),
         "won_tagged": won_count,
-        "missing_dollars": round(sum(s.dollars for s in missing), 2),
+        "missing_dollars": round(max(0.0, recon.contractor_grand - recon.carrier_grand), 2),
+        "missing_section_net": round(sum(recon.section_outstanding.values()), 2),
+        "missing_gross": round(sum(s.dollars for s in missing), 2),
         "orig_pages": orig_pages,
         "added_pages": 1 + detail_pages,
     }

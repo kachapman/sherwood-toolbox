@@ -150,6 +150,40 @@ def _hypotheses_md(recon):
     return "\n".join(out)
 
 
+def _sections_md(recon):
+    if not recon.section_outstanding:
+        return ""
+    L = ["## Section reconciliation",
+         "_Net outstanding per contractor section = its printed subtotal minus the "
+         "carrier section it maps to, so a grade revision nets against the carrier "
+         "line it replaces. The reliable total is the RCV gap above._", "",
+         "| Section | Contractor | Carrier | Net |", "|---|--:|--:|--:|"]
+    for s, net in recon.section_outstanding.items():
+        L.append(f"| {s} | {_money(recon.section_contractor_total.get(s, 0))} | "
+                 f"{_money(recon.section_carrier_total.get(s, 0))} | **{_money(net)}** |")
+    if recon.section_unattributed:
+        L.append(f"| _(carrier scope, no contractor section)_ |  | "
+                 f"{_money(recon.section_unattributed)} |  |")
+    L.append("")
+    return "\n".join(L)
+
+
+def _revisions_md(recon):
+    revs = [s for s in recon.suggestions if getattr(s, "replaces_number", 0)]
+    if not revs:
+        return ""
+    L = ["## Grade revisions",
+         "_Contractor lines that replace a carrier line under a different name; the "
+         "net is the price difference, not the full RCV._", "",
+         "| Contractor | RCV | Replaces (carrier) | RCV | Net |", "|---|--:|---|--:|--:|"]
+    for s in sorted(revs, key=lambda x: -x.net_delta):
+        L.append(f"| #{s.number} {s.description} | {_money(s.dollars)} | "
+                 f"#{s.replaces_number} {s.replaces_desc} | {_money(s.replaces_rcv)} | "
+                 f"{_signed(s.net_delta)} |")
+    L.append("")
+    return "\n".join(L)
+
+
 def render_markdown(recon):
     gap = round(recon.contractor_grand - recon.carrier_grand, 2)
     L = [f"# Reconciliation: {recon.claimant}", ""]
@@ -165,6 +199,13 @@ def render_markdown(recon):
     for n in recon.notes:
         L.append(f"> Note: {n}")
         L.append("")
+
+    sects = _sections_md(recon)
+    if sects:
+        L.append(sects)
+    revs = _revisions_md(recon)
+    if revs:
+        L.append(revs)
 
     stmts = _statements_md(recon)
     if stmts:

@@ -17,10 +17,12 @@ Suggestion tiers:
 
 from __future__ import annotations
 
+import re
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .extract import infer_themes, is_extension_item
-from .match import match_line_items
+from .match import match_line_items, section_tokens
 
 
 def base(it) -> float:
@@ -57,6 +59,12 @@ class Suggestion:
     note: str = ""
     number: int = 0        # line-item number as printed in the source estimate
     section: str = ""      # source-estimate section the item belongs to
+    # Grade-revision pairing: when this missing line revises a carrier line (a renamed
+    # replacement), the carrier line it replaces and the net price difference.
+    replaces_number: int = 0
+    replaces_desc: str = ""
+    replaces_rcv: float = 0.0
+    net_delta: float = 0.0
 
 
 @dataclass
@@ -108,6 +116,14 @@ class Recon:
     effectiveness: float = 0.0        # approved / ask, by grand-total dollars
     approved_wins: list = field(default_factory=list)  # current-carrier LineItems new vs OG
     narrative: list = field(default_factory=list)  # plain-language summary [{text, tone}]
+    # Section-total reconciliation: the outstanding per contractor section is the
+    # difference of the printed section subtotals, so grade revisions (a renamed
+    # replacement) net against the carrier line they replace instead of counting the
+    # full RCV. Keyed by contractor section name.
+    section_outstanding: dict = field(default_factory=dict)      # net $ per section
+    section_contractor_total: dict = field(default_factory=dict)  # printed contractor RCV
+    section_carrier_total: dict = field(default_factory=dict)     # mapped carrier RCV
+    section_unattributed: float = 0.0  # carrier scope that mapped to no contractor section
 
 
 # --------------------------------------------------------------------------- #
@@ -369,14 +385,14 @@ def build_narrative(recon):
     else:
         gap = round(recon.contractor_grand - recon.carrier_grand, 2)
         miss = [s for s in recon.suggestions if s.status == "MISSING"]
-        miss_d = round(sum(s.dollars for s in miss), 2)
         flagged = sum(1 for s in recon.shared if s.quantity_delta > 1e-6)
         out.append({"tone": "normal", "text":
             f"The contractor estimate is {_money0(gap)} higher than the carrier's, "
             f"{_money0(recon.contractor_grand)} against {_money0(recon.carrier_grand)}."})
-        line2 = (f"{len(miss)} line items worth {_money0(miss_d)} are in the contractor estimate "
-                 f"and missing from the carrier's, painted in salmon on the carrier pages and "
-                 f"keyed to the contractor line number.")
+        line2 = (f"{len(miss)} line items are in the contractor estimate and missing from "
+                 f"the carrier's, painted in salmon on the carrier pages and keyed to the "
+                 f"contractor line number. Each section is totalled by its net difference, "
+                 f"so a revised item nets against the carrier line it replaces.")
         if flagged:
             line2 += (f" The carrier also measured {flagged} shared "
                       f"line{'s' if flagged != 1 else ''} short of the contractor.")
@@ -400,6 +416,107 @@ def _secondary_caution(clh):
 # Reconciled mode
 # --------------------------------------------------------------------------- #
 
+def map_and_diff_sections(carrier, contractor, matched):
+    """Net outstanding per contractor section = its printed subtotal minus the
+    carrier subtotal of the section it maps to. This nets out grade revisions (a
+    renamed replacement) against the carrier line they replace, which a per-item sum
+    cannot do. Carrier sections are mapped to contractor sections by majority vote of
+    matched line items, with a token-overlap fallback for all-missing sections that
+    have no matched items to vote. Returns (outstanding, contractor_totals,
+    carrier_by_section, unattributed_carrier)."""
+    kt = contractor.section_totals or {}         # contractor section -> printed RCV
+    ct = carrier.section_totals or {}            # carrier section -> printed RCV
+    if not kt:
+        return {}, {}, {}, 0.0
+
+    votes = defaultdict(Counter)                 # carrier section -> Counter(contractor section)
+    for ci, cr in matched:                       # (contractor_item, carrier_item)
+        if getattr(cr, "section", "") and getattr(ci, "section", ""):
+            votes[cr.section][ci.section] += 1
+    k_names = list(kt.keys())
+
+    def map_carrier_sec(cs):
+        if votes.get(cs):
+            return votes[cs].most_common(1)[0][0]
+        toks = section_tokens(cs)
+        best, best_n = None, 0
+        for kn in k_names:
+            n = len(toks & section_tokens(kn))
+            if n > best_n:
+                best, best_n = kn, n
+        return best
+
+    carrier_for = defaultdict(float)
+    unattributed = 0.0
+    for cs, val in ct.items():
+        s = map_carrier_sec(cs)
+        if s is None:
+            unattributed = round(unattributed + val, 2)
+        else:
+            carrier_for[s] = round(carrier_for[s] + val, 2)
+
+    outstanding, carrier_by = {}, {}
+    for s, tot in kt.items():
+        carrier_by[s] = round(carrier_for.get(s, 0.0), 2)
+        outstanding[s] = round(max(0.0, tot - carrier_for.get(s, 0.0)), 2)
+    return outstanding, dict(kt), carrier_by, unattributed
+
+
+def _rev_tokens(s):
+    return {t for t in re.split(r"[^a-z0-9]+", (s or "").lower()) if len(t) >= 4}
+
+
+def _within(a, b, frac=0.10):
+    return a > 0 and b > 0 and abs(a - b) / max(a, b) <= frac
+
+
+def pair_grade_revisions(carrier, contractor, missing_items, carrier_only):
+    """Pair each grade-revised MISSING contractor line to the carrier line it
+    replaces, so the report can show the per-item price difference.
+
+    Primary (exact name): the line's superseded "SEE REVISION" original, matched in
+    the same section, unit, and quantity-within-10%, whose base exactly names a
+    carrier line. Fallback (guarded within-10%): a same-category, same-unit
+    carrier-only line within 10% quantity that shares a description word, and only
+    when it is the sole candidate; the word/category/unit guards keep it from pairing
+    unrelated items by quantity coincidence (a corner post to a tear-off). Returns
+    {contractor line number -> (carrier LineItem, net_delta)}."""
+    superseded = [it for it in contractor.items if getattr(it, "superseded", False)]
+    carr_by_base = {}
+    for c in carrier.items:
+        carr_by_base.setdefault(c.base, []).append(c)
+    used_c, paired = set(), set()
+    out = {}
+
+    def take(r, c):
+        used_c.add(id(c))
+        paired.add(id(r))
+        out[r.number] = (c, round(r.rcv - c.rcv, 2))
+
+    # Pass 1: exact name via the superseded original.
+    for s in superseded:
+        c = next((x for x in carr_by_base.get(s.base, []) if id(x) not in used_c), None)
+        if c is None:
+            continue
+        cands = [r for r in missing_items if id(r) not in paired
+                 and r.section == s.section and r.unit == s.unit
+                 and _within(r.quantity, s.quantity)]
+        if cands:
+            take(min(cands, key=lambda r: abs(r.quantity - s.quantity)), c)
+
+    # Pass 2: guarded within-10% fallback.
+    for r in missing_items:
+        if id(r) in paired:
+            continue
+        cands = [c for c in carrier_only if id(c) not in used_c and c.base != r.base
+                 and c.category == r.category and c.unit == r.unit
+                 and _within(c.quantity, r.quantity)
+                 and _rev_tokens(r.description) & _rev_tokens(c.description)]
+        if len(cands) == 1:
+            take(r, cands[0])
+    return out
+
+
 def reconcile_matched(carrier, contractor, claimant, playbook=None):
     # index carrier items, iterate contractor -> missing = contractor scope the
     # carrier lacks; carrier_only = items the carrier has but the contractor drops.
@@ -420,6 +537,15 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
             contractor_unit_price=it.unit_price, dollars=it.rcv,
             confidence="high", number=it.number, section=it.section,
             note="in contractor scope, absent from carrier"))
+
+    # Grade revisions: a renamed replacement (corrugated -> ribbed) that the carrier
+    # carries under the old name. Annotate the price difference on the suggestion.
+    revisions = pair_grade_revisions(carrier, contractor, missing, carrier_only)
+    for s in sugg:
+        if s.number in revisions:
+            c, delta = revisions[s.number]
+            s.replaces_number, s.replaces_desc = c.number, c.description
+            s.replaces_rcv, s.net_delta = c.rcv, delta
 
     # Shared items: every matched pair with its price and quantity breakdown, all
     # figures pulled from the two estimates. Grouped by category, largest RCV
@@ -465,6 +591,12 @@ def reconcile_matched(carrier, contractor, claimant, playbook=None):
         carrier_has_op=carrier.has_op, contractor_has_op=contractor.has_op,
         suggestions=sugg, shared=shared, bridge=bridge, est_recoverable=est,
         carrier_statements=carrier.statements, hypotheses=hypotheses)
+
+    # Per-section outstanding from the printed section-subtotal difference (nets out
+    # grade revisions). Headline dollars stay on the grand totals above.
+    (r.section_outstanding, r.section_contractor_total,
+     r.section_carrier_total, r.section_unattributed) = \
+        map_and_diff_sections(carrier, contractor, matched)
 
     if carrier.items and not matched:
         r.notes.append("cross-platform pair (carrier and contractor use different "

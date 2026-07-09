@@ -26,6 +26,13 @@ _MONTHS = {"jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct",
            "nov", "dec"}
 
 
+def section_tokens(name):
+    """Alphabetic tokens (len >= 3) of a section name, lower-cased ('Roof1' ->
+    {'roof'}). Shared by the paint anchoring and the section-total mapping so both
+    align contractor and carrier sections the same way."""
+    return {t for t in re.split(r"[^A-Za-z]+", (name or "").lower()) if len(t) >= 3}
+
+
 def name_tokens(filename: str):
     """Ordered claimant tokens (len >= 3) from a file name, boilerplate removed."""
     stem = os.path.splitext(os.path.basename(filename))[0]
@@ -103,6 +110,10 @@ def match_line_items(carrier_items, contractor_items, threshold: float = 0.86):
       missing      -> contractor items with no carrier counterpart
       carrier_only -> carrier items with no contractor counterpart
     """
+    # Drop "SEE REVISION" originals from both sides: a superseded contractor line
+    # would otherwise consume the carrier partner its corrected replacement needs.
+    carrier_items = [c for c in carrier_items if not getattr(c, "superseded", False)]
+    contractor_items = [it for it in contractor_items if not getattr(it, "superseded", False)]
     # index carrier items by base key (allow multiple)
     by_base = {}
     for ci in carrier_items:
