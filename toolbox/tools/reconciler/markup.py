@@ -224,13 +224,15 @@ FLAG_R = 34.0
 BAND_INSET = 34.0         # highlight band left/right inset from the page edge
 
 
-def _flag_money(dollars, max_w):
+def _flag_money(dollars, max_w, signed=False):
     """A compact RCV-gap label for the narrow left-margin tab: cents when they fit
     (e.g. $839.89), whole dollars for a wide 4-digit gap that would overflow
     (e.g. $1,036), shrinking the font toward 6 pt as a last resort. Returns
-    (label, fontsize)."""
-    cents = _money(round(dollars, 2))                 # $839.89
-    whole = ("-" if dollars < 0 else "") + f"${abs(round(dollars)):,}"  # $1,036
+    (label, fontsize). With signed=True a positive amount leads with '+' (an
+    approved increase, e.g. +$839.89); a negative always leads with '-'."""
+    lead = "+" if (signed and dollars >= 0) else ""
+    cents = lead + _money(round(dollars, 2))          # +$839.89
+    whole = lead + ("-" if dollars < 0 else "") + f"${abs(round(dollars)):,}"  # +$1,036
     for label in (cents, whole):
         for size in (8.0, 7.5, 7.0, 6.5, 6.0):
             if fitz.get_text_length(label, "hebo", size) <= max_w:
@@ -259,9 +261,11 @@ def flag_row(page, rect, gap_dollars, sev: Severity):
                          color=_readable_on(sev.fill))
 
 
-def tag_won(page, rect):
+def tag_won(page, rect, amount):
     """Mark a carrier line the carrier approved from our supplement: a faint green
-    band and a green check tab in the left margin."""
+    band and, in the left-margin tab, the dollars the current carrier estimate
+    added over the original on this line (an added line's full RCV, a raised
+    line's increase). Same tab the salmon short-line flag uses, recolored green."""
     w = page.rect.width
     band = fitz.Rect(BAND_INSET, rect.y0 - 1.5, w - BAND_INSET, rect.y1 + 1.5)
     page.draw_rect(band, color=None, fill=APPROVED, fill_opacity=0.16)
@@ -270,12 +274,12 @@ def tag_won(page, rect):
     if rect.x0 >= FLAG_R + 2:
         tab = fitz.Rect(FLAG_L, rect.y0 - 1.0, FLAG_R, rect.y1 + 1.0)
         page.draw_rect(tab, color=None, fill=APPROVED, fill_opacity=1.0, radius=0.25)
-        # a checkmark drawn from two segments (the Base-14 fonts have no check glyph)
-        cy = (rect.y0 + rect.y1) / 2
-        page.draw_line(fitz.Point(FLAG_L + 6, cy + 1), fitz.Point(FLAG_L + 9, cy + 3.5),
-                       color=WHITE, width=1.3)
-        page.draw_line(fitz.Point(FLAG_L + 9, cy + 3.5), fitz.Point(FLAG_R - 5, cy - 2.5),
-                       color=WHITE, width=1.3)
+        label, size = _flag_money(amount, (FLAG_R - FLAG_L) - 3, signed=True)
+        tw = fitz.get_text_length(label, "hebo", size)
+        cx = FLAG_L + (FLAG_R - FLAG_L - tw) / 2
+        cy = (rect.y0 + rect.y1) / 2 + size * 0.36
+        page.insert_text(fitz.Point(cx, cy), label, fontname="hebo", fontsize=size,
+                         color=_readable_on(APPROVED))
 
 
 # === SECTION: painting outstanding scope in place on the carrier pages ===
@@ -710,8 +714,9 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
     rev_clause = (f", plus {n_rev} existing line{'s' if n_rev != 1 else ''} it "
                   f"raised toward the contractor" if n_rev else "")
     c.text(f"-  {n_add} supplement line{'s' if n_add != 1 else ''} the carrier added "
-           f"since its original{rev_clause}: {won_count} checked in green in place on "
-           f"the carrier pages.", size=10, gap=6)
+           f"since its original{rev_clause}: {won_count} marked in green in place on "
+           f"the carrier pages, each showing the dollars it added over the original.",
+           size=10, gap=6)
     c.text(f"-  {len(missing)} items are still unapproved: {painted_count} painted in "
            f"blue on the carrier pages by section, keyed to the contractor line "
            f'number. Full list under "Outstanding scope" at the back.', size=10, gap=6)
@@ -767,7 +772,8 @@ def _flagged_line(c, flagged, located_count):
 def _legend(c, effectiveness):
     c.subheading("Legend")
     if effectiveness:
-        _legend_check(c, "Approved: contractor scope now in the carrier estimate")
+        _legend_check(c, "Approved: contractor scope now in the carrier estimate; the "
+                         "green amount is the increase over the original")
         _legend_row(c, OUTSTANDING, "Outstanding: contractor scope the carrier has not approved",
                     opacity=1.0)
     else:
@@ -776,8 +782,14 @@ def _legend(c, effectiveness):
     _legend_row(c, SEVERITIES[0].fill, "Carrier short by $500 or more on a shared line")
     _legend_row(c, SEVERITIES[1].fill, "Carrier short by $150 to $500 on a shared line")
     _legend_row(c, SEVERITIES[2].fill, "Carrier short by under $150 on a shared line")
-    c.text("Each highlighted line shows its RCV gap in the left margin; the coloured "
-           "blocks carry the contractor line number.", size=8.5, color=MUTED, gap=6)
+    if effectiveness:
+        c.text("Each highlighted line shows a dollar amount in the left margin: an "
+               "approved line's increase over the original, or a short line's RCV gap. "
+               "The coloured blocks carry the contractor line number.", size=8.5,
+               color=MUTED, gap=6)
+    else:
+        c.text("Each highlighted line shows its RCV gap in the left margin; the coloured "
+               "blocks carry the contractor line number.", size=8.5, color=MUTED, gap=6)
 
 
 def _summary_footer(c, recon):
@@ -800,15 +812,16 @@ def _legend_row(c, fill, label, opacity=0.5):
 
 
 def _legend_check(c, label):
+    """Legend row whose green swatch shows a '+$' mark, matching the signed dollar
+    increase painted in the left margin of each approved carrier line."""
     c.space(16)
     top = c.y
     sw = fitz.Rect(MARGIN, top + 1, MARGIN + 22, top + 12)
     c.page.draw_rect(sw, color=None, fill=APPROVED, fill_opacity=1.0)
-    cy = top + 6.5
-    c.page.draw_line(fitz.Point(MARGIN + 6, cy + 1), fitz.Point(MARGIN + 9, cy + 3.5),
-                     color=WHITE, width=1.3)
-    c.page.draw_line(fitz.Point(MARGIN + 9, cy + 3.5), fitz.Point(MARGIN + 17, cy - 2.5),
-                     color=WHITE, width=1.3)
+    tag = "+$"
+    tw = fitz.get_text_length(tag, "hebo", 7.5)
+    c.page.insert_text(fitz.Point(MARGIN + (22 - tw) / 2, top + 9.3), tag,
+                       fontname="hebo", fontsize=7.5, color=_readable_on(APPROVED))
     c.page.insert_text(fitz.Point(MARGIN + 30, top + 10.5), label, fontname="helv",
                        fontsize=9.5, color=INK)
     c.y = top + 16
@@ -921,13 +934,15 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
 def _approved_section(c, recon):
     """Supplement items the carrier approved since the original estimate: brand-new
     lines it added, and existing lines it raised toward the contractor scope. Both
-    are checked in green on the carrier pages."""
+    are marked in green on the carrier pages, each with the dollars it added over
+    the original shown in the left margin."""
     added = recon.approved_added
     revised = recon.approved_revised
     c.heading("Approved items")
     c.text(f"Contractor scope the carrier put into its current estimate, "
-           f"{_money(recon.approved_dollars)} approved over the original, checked in "
-           f"green on the carrier pages. \"Added\" is a new line; \"raised\" is an "
+           f"{_money(recon.approved_dollars)} approved over the original, marked in "
+           f"green on the carrier pages with the per-line increase in the left margin. "
+           f"\"Added\" is a new line; \"raised\" is an "
            f"existing line the carrier increased toward the contractor.",
            size=9, color=MUTED, gap=8)
     if not added and not revised:
@@ -1085,12 +1100,17 @@ def mark_up_carrier(carrier, recon, out_path: str) -> dict:
         sev = severity_for(gap)
         flag_row(doc.load_page(loc[0]), loc[1], gap, sev)
 
-    # Check off approved wins (current-carrier lines new since the original).
+    # Tag approved wins with the dollars they added over the original: an added
+    # line's full RCV, a raised line's increase (delta). approved_wins carries the
+    # full current RCV for raised lines, so source the delta from approved_revised.
+    won_amount = {it.number: it.rcv for it in getattr(recon, "approved_added", [])}
+    won_amount.update({rev.number: rev.delta for rev in getattr(recon, "approved_revised", [])})
     won_count = 0
     for w in getattr(recon, "approved_wins", []):
         loc = located_all.get(w.number)
-        if loc:
-            tag_won(doc.load_page(loc[0]), loc[1])
+        amount = won_amount.get(w.number)
+        if loc and amount is not None:
+            tag_won(doc.load_page(loc[0]), loc[1], amount)
             won_count += 1
 
     # Paint the missing/outstanding scope onto the carrier pages, in its own

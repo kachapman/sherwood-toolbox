@@ -233,9 +233,9 @@
     tile(5, 'Current carrier RCV', money(e.carrier_grand), '');
     tile(6, 'Contractor RCV', money(e.contractor_grand), '');
     $('totalsRow2').style.display = '';
-    $('markupNote').textContent = 'Approved items are checked in green on the carrier pages; unapproved scope is painted in blue by section. Open the summary page first.';
+    $('markupNote').textContent = 'Approved items are marked in green on the carrier pages with the dollar increase over the original in the left margin; unapproved scope is painted in blue by section. Open the summary page first.';
     stat('A', count(c.missing), 'unapproved items', money(c.missing_dollars) + ', ' + count(c.missing_painted) + ' painted in place');
-    stat('B', count(e.won_tagged), 'approved items tagged', 'checked in green');
+    stat('B', count(e.won_tagged), 'approved items tagged', 'increase shown in green');
     stat('C', count(c.flagged), 'quantity gaps flagged', c.flagged ? count(c.located) + ' highlighted' : 'none under-measured');
   }
   function renderRecoverable(data) {
