@@ -21,7 +21,7 @@ This writes `sherwood-toolbox_<version>_amd64.deb` in the project root.
 ### 2. Install on the target machine
 
 ```bash
-sudo dpkg -i sherwood-toolbox_0.3.3_amd64.deb
+sudo dpkg -i sherwood-toolbox_0.3.4_amd64.deb
 ```
 
 If `dpkg` complains about missing dependencies, run:

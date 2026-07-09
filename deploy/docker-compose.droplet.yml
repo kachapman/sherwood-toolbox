@@ -3,7 +3,9 @@
 
 services:
   sherwood-toolbox:
-    build: .
+    build:
+      context: ..
+      dockerfile: Dockerfile
     container_name: sherwood-toolbox
     restart: unless-stopped
     environment:

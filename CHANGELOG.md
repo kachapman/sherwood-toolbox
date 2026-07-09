@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-09
+
+### Fixed
+- `deploy/docker-compose.droplet.yml` and `deploy/docker-compose.example.yml`
+  referenced `build: .`, which resolved to the `deploy/` directory and could not
+  find the `Dockerfile` at the project root. Changed to `context: ..` +
+  `dockerfile: Dockerfile` so `docker compose -f deploy/... up --build` works
+  from the repo root.
+
 ## [0.3.3] - 2026-07-09
 
 ### Added
