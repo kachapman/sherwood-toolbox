@@ -33,6 +33,10 @@ _IC_DOCS = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
             '<path d="M14 3v4a1 1 0 0 0 1 1h4"/>'
             '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>'
             '<path d="M9 12h6M9 16h6"/></svg>')
+_IC_REC = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+           '<rect x="2" y="4" width="8.5" height="16" rx="1.5"/>'
+           '<rect x="13.5" y="4" width="8.5" height="16" rx="1.5"/>'
+           '<path d="M4.5 9h3.5M4.5 12.5h3.5M16 9h3.5M16 12.5h3.5"/></svg>')
 
 TOOLS = [
     ToolSpec("estimate_enhancer", "Estimate Enhancer", _IC_EE, "/estimate-enhancer",
@@ -43,4 +47,8 @@ TOOLS = [
              "Build a branded photo report PDF from a job's images.", True, True),
     ToolSpec("documents", "Documents", _IC_DOCS, "/documents",
              "Generate invoices and certificates of completion.", True, True),
+    ToolSpec("reconciler", "Estimate Reconciler", _IC_REC, "/reconciler",
+             "Mark up a carrier estimate against a contractor estimate: missing "
+             "scope and quantity gaps highlighted on the PDF, with a logged "
+             "breakdown.", True, True),
 ]

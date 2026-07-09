@@ -59,9 +59,7 @@ git clone https://github.com/kachapman/sherwood-toolbox.git
 cd sherwood-toolbox
 ```
 
-**Important:** Build and run the AppImage on the machine where you will use it
-(Zorin, Fedora 43, etc.) so the bundled Python can use the system's WebKitGTK +
-PyGObject bindings.
+**This is a fat GTK-bundled AppImage.** WebKitGTK + GTK + PyGObject (gi) are bundled from the build host. A `BUILD_INFO.txt` inside the image (and a `.buildinfo` sidecar) records the exact Python and WebKitGTK versions used at build time.
 
 You can either:
 
@@ -77,28 +75,33 @@ chmod +x run/build-appimage.sh
 ./run/build-appimage.sh
 ```
 
-This produces `Sherwood_Toolbox-<version>-x86_64.AppImage` in the project root.
+This produces `Sherwood_Toolbox-<version>-x86_64.AppImage` in the project root (and leaves `AppDir` for inspection).
 
-**Build-time requirements** (especially on Fedora 43 + AMD or Zorin):
+**Build-time requirements** (for the fat GTK bundling step):
 ```bash
 # Fedora 43 / recent Fedora
-sudo dnf install python3-gobject webkit2gtk4.1 fuse
+sudo dnf install python3-gobject webkit2gtk4.1 fuse \
+                 pkgconf gtk3-devel gobject-introspection-devel \
+                 librsvg2-devel cairo-devel
 
 # Zorin / Debian / Ubuntu builders
-sudo apt install python3-gi python3-gi-cairo gir1.2-webkit2-4.1 fuse
+sudo apt install python3-gi python3-gi-cairo gir1.2-webkit2-4.1 fuse \
+                 pkgconf libgtk-3-dev libgirepository1.0-dev \
+                 librsvg2-dev libcairo2-dev
 ```
+
+The build uses a clean temp venv + linuxdeploy + linuxdeploy-plugin-gtk, then verifies that the bundled Python can import gi + WebKit2 from the packaged GTK stack (hard fail if not).
 
 ### 2. Runtime requirements on the target machine
 
-The AppImage bundles its own Python and most libraries, but still needs the
-system WebKitGTK + PyGObject bindings because it uses the native GTK backend:
+The GTK/WebKit/gi stack is inside the image. You only need FUSE (or use `--appimage-extract-and-run`):
 
 ```bash
-# Fedora 43 (AMD Ryzen iGPUs are common here)
-sudo dnf install webkit2gtk4.1 python3-gobject
+# Fedora 43 + AMD (common case)
+sudo dnf install fuse
 
 # Zorin / Ubuntu-based
-sudo apt install gir1.2-webkit2-4.1 python3-gi python3-gi-cairo
+sudo apt install fuse3   # or libfuse2
 ```
 
 ### 3. Run it

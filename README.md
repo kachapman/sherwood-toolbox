@@ -77,17 +77,23 @@ chmod +x Sherwood_Toolbox-*.AppImage
 ./Sherwood_Toolbox-*.AppImage
 ```
 
-**Runtime requirement on the target machine** (Zorin or Fedora):
+**This is a fat GTK-bundled AppImage.** WebKitGTK + GTK + PyGObject are bundled from the build host (see `BUILD_INFO.txt` inside the image and the `.buildinfo` sidecar). Runtime requirements on the target are now minimal:
 
 ```bash
-# Fedora 43 (common on AMD Ryzen hardware)
-sudo dnf install webkit2gtk4.1 python3-gobject
+# Fedora 43 + AMD (common case)
+sudo dnf install fuse
 
 # Zorin / Ubuntu-based
-sudo apt install gir1.2-webkit2-4.1 python3-gi python3-gi-cairo
+sudo apt install fuse3   # or libfuse2
 ```
 
-The AppImage includes the native pywebview desktop shell and workarounds for AMD + recent Fedora/WebKitGTK issues (black/blank windows, dmabuf, etc.). Build on the target machine for best compatibility, or use a prebuilt from Releases.
+On AMD Ryzen iGPUs a black window can still occur (dmabuf/Mesa). The AppRun already forces safe settings; as a last resort:
+
+```bash
+LIBGL_ALWAYS_SOFTWARE=1 ./Sherwood_Toolbox-*.AppImage
+```
+
+The AppImage includes the native pywebview desktop shell and AMD + Fedora workarounds. Build on the target machine (or use a matching prebuilt) for best results. See also SHARING.md.
 
 ### Portable tarball (works on most Linux distributions)
 
