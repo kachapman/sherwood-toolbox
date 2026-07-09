@@ -1,7 +1,7 @@
 [project]
 name = "sherwood-toolbox"
 version = "0.3.2"
-description = "Local toolbox of estimating tools (hub + four tools) as one Flask app"
+description = "Local toolbox of estimating tools (hub + five tools) as one Flask app"
 requires-python = ">=3.9"
 dependencies = [
     "flask>=3.0",
@@ -35,4 +35,5 @@ toolbox = [
     "tools/*/static/css/*.css",
     "tools/*/static/js/*.js",
     "tools/*/static/img/*",
+    "tools/*/*.json",
 ]

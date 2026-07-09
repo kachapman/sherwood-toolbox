@@ -113,6 +113,11 @@ See `STRUCTURE.md` for a full path-by-path reference.
 - The vendored `restoration_common` package has its canonical source at
   `~/.local/share/RestorationToolkit`. If you change it here, keep the copies in
   sync.
+- Tesseract OCR is an **optional** runtime dependency, used only by the Estimate
+  Reconciler for image-only PDFs. It is not in `pyproject.toml`. When present,
+  scanned estimates are OCR'd (flagged low confidence); when absent, the tool
+  shows a degrade message and continues. No tool shells out to poppler; the
+  Reconciler extracts PDF text and OCR through PyMuPDF (`fitz`) only.
 
 ## Known fixes and behaviors
 
@@ -156,6 +161,17 @@ target for the file manager.
 - `toolbox/core/static/img/app_icon.png` — Toolbox icon for the OS dock/app grid.
 - `toolbox/core/static/img/mark.svg` — Favicon.
 
+### Estimate Reconciler
+- Pure-PDF reconciliation lives in `toolbox/tools/reconciler/`. The carrier and
+  contractor estimates are parsed with PyMuPDF; optional Tesseract OCR is used
+  only for image-only PDFs.
+- `playbook.json` is bundled package data (declared in `pyproject.toml` as
+  `tools/*/*.json`) and drives the secondary "commonly added" projection.
+- The marked-up carrier PDF is served once and then deleted; the per-run log
+  persists under `DATA_DIR/reconciler-logs`.
+- In `WEB_MODE` the Reconciler is visible to employees only (customers are
+  limited to Estimate Enhancer + IWS).
+
 ## Versioning and release
 
 Versions are stored in:
@@ -189,7 +205,7 @@ After changes that affect the desktop shell, packaging, or CRM:
 ### Web + auth + limits testing checklist
 - [ ] With `TOOLBOX_WEB_MODE=1`, unauthenticated requests redirect to `/login`.
 - [ ] First login with any token succeeds and creates an employee token (bootstrap).
-- [ ] Employees see all 4 tools + Code Docs + Archive + Admin in the sidebar.
+- [ ] Employees see all 5 tools + Code Docs + Archive + Admin in the sidebar.
 - [ ] Customers see only Estimate Enhancer + IWS; Photo Report, Documents, folders, and Admin are hidden/redirected.
 - [ ] Admin (employee) can create/revoke employee and customer tokens; plaintext shown only once.
 - [ ] Logout clears the cookie and subsequent access redirects to login.

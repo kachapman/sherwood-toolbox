@@ -141,6 +141,18 @@ agents working on the project.
   smoke-test launch on at least one target (ideally the Fedora/AMD case the
   build script tries to support).
 
+**Fat GTK AppImage (post this change):** `run/build-appimage.sh` now produces a
+self-contained ("fat") image that bundles WebKitGTK + GTK + gi from the build
+host using linuxdeploy + linuxdeploy-plugin-gtk + a clean venv. A
+`BUILD_INFO.txt` (inside) and `.buildinfo` sidecar record the exact Python and
+WebKitGTK versions used. Runtime no longer requires webkit2gtk4.1/python3-gobject
+on the target for the core stack (only FUSE or `--appimage-extract-and-run` plus
+basic graphics). The AppRun still applies the AMD workarounds. The build leaves
+`AppDir` behind for inspection and hard-fails the post-build gi/WebKit2 import
+test if bundling is broken. The GitHub CI workflow still produces a thin
+Ubuntu-22.04 (WebKit 4.0) image; local fat builds on the target distro are
+recommended for AMD/Fedora 43.
+
 See also `run/build-appimage.sh` and `.github/workflows/build-appimage.yml`.
 
 ## Deployment Notes (Droplet / Web)
