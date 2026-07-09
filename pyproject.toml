@@ -34,4 +34,5 @@ toolbox = [
     "tools/*/static/css/*.css",
     "tools/*/static/js/*.js",
     "tools/*/static/img/*",
+    "tools/*/*.json",
 ]
