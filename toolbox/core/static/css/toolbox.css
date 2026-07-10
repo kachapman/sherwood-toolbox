@@ -407,6 +407,7 @@ input:focus, select:focus, textarea:focus {
 .lineitems td input { padding: 6px 8px; }
 .lineitems .num { text-align: right; }
 .lineitems tfoot td { font-weight: 700; color: var(--green-900); border-bottom: none; }
+.lineitems tr.drag-over { background: var(--sage-50); border-top: 2px solid var(--green-500); }
 
 /* Thumbnail grid placeholder */
 .thumb-grid {
