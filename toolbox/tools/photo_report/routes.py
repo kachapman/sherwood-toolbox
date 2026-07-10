@@ -1,28 +1,59 @@
 """HTTP layer for Photo Report. Builds the form, runs the headless
-PhotoReportPDF generator on uploaded images, and streams the PDF back.
+PhotoReportPDF generator on uploaded images, and saves the PDF for download.
 
 The PDF layout lives in restoration_common.PhotoReportPDF; this file only
 collects inputs and wires them. Edit fields here; edit the PDF in
 restoration_common.
 """
-import io
 import json
 import os
 import shutil
 import tempfile
+import time
+from pathlib import Path
 
-from flask import (Blueprint, jsonify, render_template, request, send_file)
+from flask import (Blueprint, jsonify, render_template, request, send_file,
+                   url_for)
 from werkzeug.utils import secure_filename
 
 from restoration_common import (PhotoReportPDF, get_company_by_id, load_companies,
                                  find_logo, generate_output_filename)
 
+from ...config import Config
 from ...core.crm import fetch_job_info
 
 bp = Blueprint("photo_report", __name__, template_folder="templates",
                static_folder="static", static_url_path="static")
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+
+
+def _upload_dir():
+    d = Path(Config.UPLOAD_DIR)
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
+def _cleanup_file(filepath):
+    if filepath and os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+
+
+def _sweep_stale(max_age=1800):
+    """Delete generated PDFs older than max_age seconds."""
+    try:
+        now = time.time()
+        for p in Path(_upload_dir()).glob("pr_report_*.pdf"):
+            try:
+                if now - p.stat().st_mtime > max_age:
+                    p.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
 
 
 @bp.route("/")
@@ -37,6 +68,7 @@ def crm_fetch():
 
 @bp.route("/generate", methods=["POST"])
 def generate():
+    _sweep_stale()
     form = request.form
     company = get_company_by_id(form.get("company_id", "")) or {}
     if not company:
@@ -63,14 +95,10 @@ def generate():
     except ValueError:
         max_size_mb = 10.0
 
-    # Captions arrive as a JSON array parallel to the files list.
     try:
         captions = json.loads(form.get("photo_captions", "[]") or "[]")
     except (json.JSONDecodeError, TypeError):
         captions = []
-    print(f"[photo_report] generate: company={company.get('id')}, "
-          f"customer={job_info['customer_name']}, images={len(images)}, "
-          f"captions={len(captions)}, caption_data={captions[:3]}")
 
     temp_dir = tempfile.mkdtemp(prefix="toolbox_photo_")
     try:
@@ -84,18 +112,12 @@ def generate():
         out_path = os.path.join(temp_dir, "report.pdf")
         gen = PhotoReportPDF(out_path, job_info, company, logo_path=logo_path)
 
-        # The generator's _create_page draws display_filename as the photo
-        # info line. When a caption is provided, prepend it to the filename
-        # so the PDF shows "Caption  |  filename.jpg" on each page.
         if captions and len(captions) == len(image_paths):
             display_names = []
             for i, path in enumerate(image_paths):
                 cap = (captions[i] if i < len(captions) else "").strip()
                 fname = os.path.basename(path)
                 display_names.append(f"{cap}  |  {fname}" if cap else fname)
-            print(f"[photo_report] captions applied: {display_names[:3]}")
-            # Monkey-patch the display names into the generate flow by
-            # overriding _create_page's default filename behavior.
             _orig_create_page = gen._create_page
             def _patched_create_page(c, image_path, display_filename=None,
                                      original_path=None, page_index=0):
@@ -108,10 +130,30 @@ def generate():
         if not gen.generate(image_paths, max_size_mb=max_size_mb) or not os.path.exists(out_path):
             return jsonify({"error": "Could not generate the photo report."}), 500
 
-        with open(out_path, "rb") as fh:
-            data = io.BytesIO(fh.read())
+        # Save to UPLOAD_DIR so pywebview can serve it via the native Save As dialog.
         download_name = generate_output_filename(job_info)
-        return send_file(data, mimetype="application/pdf",
-                         as_attachment=True, download_name=download_name)
+        safe_name = secure_filename(download_name)
+        dest = os.path.join(_upload_dir(), safe_name)
+        shutil.copy2(out_path, dest)
+
+        return jsonify({
+            "ok": True,
+            "filename": safe_name,
+            "download": url_for("photo_report.download_file", name=safe_name),
+        })
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@bp.route("/download/<name>")
+def download_file(name):
+    """Serve a generated PDF. In the desktop shell the client calls
+    pywebview.api.save_file(name) which reads this from disk; in a browser
+    the client falls back to window.location.href here."""
+    safe = secure_filename(name)
+    if not safe or not safe.lower().endswith(".pdf"):
+        return "File not found", 404
+    filepath = os.path.join(_upload_dir(), safe)
+    if os.path.exists(filepath):
+        return send_file(filepath, mimetype="application/pdf", as_attachment=True)
+    return "File not found", 404

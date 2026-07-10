@@ -2,11 +2,16 @@
 serves the page and a PDF export endpoint; all math runs in static/js/calculator.js.
 Edit the coverage math there, not here."""
 import io
-import tempfile
 import os
+import shutil
+import tempfile
+import time
+from pathlib import Path
 
 import fitz
-from flask import Blueprint, render_template, request, send_file
+from flask import Blueprint, jsonify, render_template, request, send_file, url_for
+
+from ...config import Config
 
 bp = Blueprint(
     "iws",
@@ -17,6 +22,25 @@ bp = Blueprint(
 )
 
 
+def _upload_dir():
+    d = Path(Config.UPLOAD_DIR)
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
+def _sweep_stale(max_age=1800):
+    try:
+        now = time.time()
+        for p in Path(_upload_dir()).glob("iws_*.pdf"):
+            try:
+                if now - p.stat().st_mtime > max_age:
+                    p.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
 @bp.route("/")
 def index():
     return render_template("iws.html")
@@ -24,7 +48,8 @@ def index():
 
 @bp.route("/pdf", methods=["POST"])
 def export_pdf():
-    """Generate a one-page PDF summary of the IWS calculation."""
+    """Generate a one-page PDF summary and save it for download."""
+    _sweep_stale()
     data = request.get_json(silent=True) or {}
     print(f"[iws] pdf export: project={data.get('projectName')}, "
           f"actual={data.get('actualTotal')}, full_roll={data.get('fullRollTotal')}")
@@ -162,5 +187,30 @@ def export_pdf():
 
     safe_name = project_name.replace(" ", "_").replace("/", "-")[:40]
     filename = f"IWS_{safe_name}.pdf" if safe_name else "IWS_Calculation.pdf"
-    return send_file(buf, mimetype="application/pdf",
-                     as_attachment=True, download_name=filename)
+    safe_filename = filename.replace(" ", "_")
+
+    # Save to UPLOAD_DIR so pywebview can serve it via the native Save As dialog.
+    dest = os.path.join(_upload_dir(), safe_filename)
+    with open(dest, "wb") as f:
+        f.write(buf.read())
+
+    return jsonify({
+        "ok": True,
+        "filename": safe_filename,
+        "download": url_for("iws.download_file", name=safe_filename),
+    })
+
+
+@bp.route("/download/<name>")
+def download_file(name):
+    """Serve a generated PDF. In the desktop shell the client calls
+    pywebview.api.save_file(name) which reads this from disk; in a browser
+    the client falls back to window.location.href here."""
+    from werkzeug.utils import secure_filename as safe
+    s = safe(name)
+    if not s or not s.lower().endswith(".pdf"):
+        return "File not found", 404
+    filepath = os.path.join(_upload_dir(), s)
+    if os.path.exists(filepath):
+        return send_file(filepath, mimetype="application/pdf", as_attachment=True)
+    return "File not found", 404

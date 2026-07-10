@@ -1,31 +1,67 @@
 """HTTP layer for the Documents tool. Collects invoice/certificate inputs and
 runs the headless restoration_common generators. The PDF layouts live in
 restoration_common (InvoicePDFGenerator, COCPDFGenerator); this file maps the
-web form to their inputs and streams the result back.
+web form to their inputs and saves the result for download.
 
-doc_type selects which document to produce ("invoice" or "coc").
+doc_type selects which document to produce ("invoice", "coc", or "both").
 """
 import io
 import json
 import os
 import shutil
 import tempfile
+import time
 import zipfile
 from datetime import date
+from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_file
+from flask import Blueprint, jsonify, render_template, request, send_file, url_for
 from werkzeug.utils import secure_filename
 
 from restoration_common import (InvoicePDFGenerator, COCPDFGenerator,
                                  get_company_by_id, load_companies, find_logo,
                                  get_signature_path)
 
+from ...config import Config
 from ...core.crm import fetch_job_info
 
 bp = Blueprint("documents", __name__, template_folder="templates")
 
 ITEL_AMOUNT = 199.80
 NTS_AMOUNT = 150.00
+
+
+def _upload_dir():
+    d = Path(Config.UPLOAD_DIR)
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
+def _cleanup_file(filepath):
+    if filepath and os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+
+
+def _sweep_stale(max_age=1800):
+    try:
+        now = time.time()
+        for p in Path(_upload_dir()).glob("docs_*.pdf"):
+            try:
+                if now - p.stat().st_mtime > max_age:
+                    p.unlink()
+            except OSError:
+                pass
+        for p in Path(_upload_dir()).glob("docs_*.zip"):
+            try:
+                if now - p.stat().st_mtime > max_age:
+                    p.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
 
 
 @bp.route("/")
@@ -67,14 +103,11 @@ def _build_job_info(form):
 
 
 def _build_line_items(form):
-    """Line items are additions on top of the base charge (which the invoice
-    generator draws separately). ITEL/NTS toggles plus any custom rows."""
     items = []
     if form.get("include_itel"):
         items.append(("ITEL Report", ITEL_AMOUNT))
     if form.get("include_nts"):
         items.append(("NTS Report", NTS_AMOUNT))
-    # Custom rows arrive as a JSON array of {description, amount}.
     try:
         for row in json.loads(form.get("line_items_json", "[]") or "[]"):
             desc = str(row.get("description", "")).strip()
@@ -100,6 +133,7 @@ def _make_coc(out_path, company, job_info, logo_path, sig_path, sig_name):
 
 @bp.route("/generate", methods=["POST"])
 def generate():
+    _sweep_stale()
     form = request.form
     doc_type = form.get("doc_type", "invoice")
     company = get_company_by_id(form.get("company_id", "")) or {}
@@ -114,7 +148,6 @@ def generate():
     try:
         logo_path = find_logo(temp_dir, company)
 
-        # Signature: custom upload wins, else the company's saved signature.
         sig_path = None
         sig_name = form.get("signature_name", "").strip() or job_info["sales_rep"]
         if form.get("include_signature"):
@@ -135,14 +168,18 @@ def generate():
             coc_name = _make_coc(coc_path, company, job_info, logo_path, sig_path, sig_name)
             if not (os.path.exists(inv_path) and os.path.exists(coc_path)):
                 return jsonify({"error": "Could not generate the documents."}), 500
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            # Save ZIP to UPLOAD_DIR
+            zip_name = f"Documents_{job_info['customer_name']}_{job_info['job_number']}.zip"
+            safe_zip = secure_filename(zip_name)
+            zip_dest = os.path.join(_upload_dir(), safe_zip)
+            with zipfile.ZipFile(zip_dest, "w", zipfile.ZIP_DEFLATED) as zf:
                 zf.write(inv_path, inv_name)
                 zf.write(coc_path, coc_name)
-            buf.seek(0)
-            zip_name = f"Documents_{job_info['customer_name']}_{job_info['job_number']}.zip"
-            return send_file(buf, mimetype="application/zip",
-                             as_attachment=True, download_name=zip_name)
+            return jsonify({
+                "ok": True,
+                "filename": safe_zip,
+                "download": url_for("documents.download_file", name=safe_zip),
+            })
 
         out_path = os.path.join(temp_dir, "document.pdf")
         if doc_type == "coc":
@@ -153,9 +190,29 @@ def generate():
 
         if not os.path.exists(out_path):
             return jsonify({"error": "Could not generate the document."}), 500
-        with open(out_path, "rb") as fh:
-            data = io.BytesIO(fh.read())
-        return send_file(data, mimetype="application/pdf",
-                         as_attachment=True, download_name=download_name)
+
+        safe_name = secure_filename(download_name)
+        dest = os.path.join(_upload_dir(), safe_name)
+        shutil.copy2(out_path, dest)
+
+        return jsonify({
+            "ok": True,
+            "filename": safe_name,
+            "download": url_for("documents.download_file", name=safe_name),
+        })
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@bp.route("/download/<name>")
+def download_file(name):
+    safe = secure_filename(name)
+    if not safe:
+        return "File not found", 404
+    if not safe.lower().endswith((".pdf", ".zip")):
+        return "File not found", 404
+    filepath = os.path.join(_upload_dir(), safe)
+    if os.path.exists(filepath):
+        mime = "application/zip" if safe.lower().endswith(".zip") else "application/pdf"
+        return send_file(filepath, mimetype=mime, as_attachment=True)
+    return "File not found", 404

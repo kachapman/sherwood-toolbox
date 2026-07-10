@@ -135,7 +135,9 @@
   const DOCS = {
     crm: "{{ url_for('documents.crm_fetch') }}",
     generate: "{{ url_for('documents.generate') }}",
+    download: "{{ url_for('documents.download_file', name='__N__') }}",
   };
+  function docsDlUrl(name) { return DOCS.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
 
   // Debounce helper
@@ -239,21 +241,23 @@
     $('line_items_json').value = JSON.stringify(lineRows());
     try {
       const r = await fetch(DOCS.generate, { method: 'POST', body: new FormData($('docForm')) });
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/pdf') || ct.includes('application/zip')) {
-        const blob = await r.blob();
-        const cd = r.headers.get('content-disposition') || '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const ext = ct.includes('zip') ? '.zip' : '.pdf';
-        const name = m ? decodeURIComponent(m[1]) : (docType + ext);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-        msg.textContent = 'Downloaded ' + name;
-      } else {
-        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
-        msg.textContent = data.error || 'Generation failed.';
+      const data = await r.json();
+      if (data.error) { msg.textContent = data.error; return; }
+      if (data.ok && data.filename) {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+          msg.textContent = 'Saving...';
+          try {
+            const res = await window.pywebview.api.save_file(data.filename);
+            if (!res.ok && res.error !== 'Save cancelled.') {
+              msg.textContent = res.error || 'Could not save file.';
+            } else {
+              msg.textContent = 'Saved ' + data.filename;
+            }
+          } catch (err) { msg.textContent = 'Save failed: ' + err.message; }
+        } else {
+          window.location.href = docsDlUrl(data.filename);
+          msg.textContent = 'Downloaded ' + data.filename;
+        }
       }
     } catch (e) { msg.textContent = 'Error: ' + e.message; }
   }

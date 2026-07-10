@@ -87,7 +87,9 @@
   const PR = {
     crm: "{{ url_for('photo_report.crm_fetch') }}",
     generate: "{{ url_for('photo_report.generate') }}",
+    download: "{{ url_for('photo_report.download_file', name='__N__') }}",
   };
+  function prDlUrl(name) { return PR.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
 
   // Photo management: reorderable grid with captions
@@ -229,20 +231,24 @@
       fd.append('photo_captions', JSON.stringify(captionsArr));
       console.log('[pr] submit:', {photoCount: photoOrder.length, captions: captionsArr});
       const r = await fetch(PR.generate, { method: 'POST', body: fd });
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/pdf')) {
-        const blob = await r.blob();
-        const cd = r.headers.get('content-disposition') || '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const name = m ? decodeURIComponent(m[1]) : 'photo_report.pdf';
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-        msg.textContent = 'Downloaded ' + name;
-      } else {
-        const data = await r.json().catch(function() { return { error: 'Generation failed.' }; });
-        msg.textContent = data.error || 'Generation failed.';
+      const data = await r.json();
+      if (data.error) { msg.textContent = data.error; btn.disabled = false; return; }
+      if (data.ok && data.filename) {
+        // Desktop shell: native Save As dialog.  Browser: direct download link.
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+          msg.textContent = 'Saving...';
+          try {
+            const res = await window.pywebview.api.save_file(data.filename);
+            if (!res.ok && res.error !== 'Save cancelled.') {
+              msg.textContent = res.error || 'Could not save file.';
+            } else {
+              msg.textContent = 'Saved ' + data.filename;
+            }
+          } catch (err) { msg.textContent = 'Save failed: ' + err.message; }
+        } else {
+          window.location.href = prDlUrl(data.filename);
+          msg.textContent = 'Downloaded ' + data.filename;
+        }
       }
     } catch (e) { msg.textContent = 'Error: ' + e.message; }
     btn.disabled = false;

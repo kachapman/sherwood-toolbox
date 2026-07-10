@@ -531,19 +531,25 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(function(r) {
-            if (!r.ok) throw new Error('Server returned ' + r.status);
-            return r.blob();
-        }).then(function(blob) {
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            var rawName = (inputs.projectName || '').trim();
-            var safeName = rawName.replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '');
-            a.href = url;
-            a.download = safeName ? 'IWS_' + safeName + '.pdf' : 'IWS_Calculation.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            return r.json();
+        }).then(function(data) {
+            if (data.error) { throw new Error(data.error); }
+            if (data.ok && data.filename) {
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+                    els.savePdfBtn.textContent = 'Saving...';
+                    return window.pywebview.api.save_file(data.filename).then(function(res) {
+                        if (!res.ok && res.error !== 'Save cancelled.') {
+                            throw new Error(res.error || 'Could not save file.');
+                        }
+                        els.savePdfBtn.textContent = 'Saved!';
+                        setTimeout(function() { els.savePdfBtn.textContent = 'Save as PDF'; }, 2000);
+                    });
+                } else {
+                    // Browser fallback: direct download link
+                    window.location.href = data.download;
+                    els.savePdfBtn.textContent = 'Save as PDF';
+                }
+            }
         }).catch(function(err) {
             alert('PDF export failed: ' + err.message);
         }).finally(function() {
