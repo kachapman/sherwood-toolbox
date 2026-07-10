@@ -144,6 +144,7 @@
     process: "{{ url_for('estimate_enhancer.process') }}",
     download: "{{ url_for('estimate_enhancer.download_file', filename='__F__') }}",
     uploads: "{{ url_for('estimate_enhancer.serve_upload', filename='__F__') }}",
+    progress: "{{ url_for('estimate_enhancer.progress', filename='__F__') }}",
   };
   function eeUrl(tpl, name) { return tpl.replace('__F__', encodeURIComponent(name)); }
 
@@ -265,6 +266,30 @@
     if (processSection) processSection.style.display = 'none';
     setStep('stepEnhance', 'done'); setStep('stepDeliver', 'active');
 
+    // Start polling for progress while the fork subprocess runs
+    var progressUrl = EE_URLS.progress.replace('__F__', encodeURIComponent(currentFilename));
+    var pollCount = 0;
+    var pollMessages = [
+      'Sanitizing PDF structure...',
+      'Building image name index...',
+      'Matching photo references...',
+      'Adding hyperlinks...',
+      'Applying highlights...',
+      'Finalizing output...'
+    ];
+    var pollTimer = setInterval(function() {
+      pollCount++;
+      var loadingText = document.getElementById('loadingText');
+      if (loadingText && pollCount <= pollMessages.length) {
+        loadingText.textContent = pollMessages[pollCount - 1];
+      }
+      fetch(progressUrl).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.status === 'done' || d.status === 'error') {
+          clearInterval(pollTimer);
+        }
+      }).catch(function() {});
+    }, 8000);
+
     const formData = new FormData();
     formData.append('filename', currentFilename);
     formData.append('confirm', 'yes');
@@ -291,6 +316,7 @@
 
     try {
       const response = await fetch(EE_URLS.process, { method: 'POST', body: formData });
+      clearInterval(pollTimer);
       const text = await response.text();
       let data;
       try { data = JSON.parse(text); }
@@ -344,6 +370,7 @@
         };
       }
     } catch (error) {
+      clearInterval(pollTimer);
       alert('Error: ' + error.message);
     }
     if (loading) loading.style.display = 'none';

@@ -129,6 +129,27 @@ def test():
     return jsonify({'test': 'ok'})
 
 
+@bp.route('/progress/<filename>')
+def progress(filename):
+    """Poll whether the fork subprocess has finished. Returns {status: 'running'|'done'|'error'}."""
+    safe = secure_filename(filename or '')
+    if not safe:
+        return jsonify({'status': 'error', 'message': 'Invalid filename'})
+    upload = _upload_dir()
+    output_pdf = os.path.join(upload, safe + '.output.pdf')
+    linked_pdf = os.path.join(upload, safe.replace('.pdf', '') + '_linked.pdf')
+    # The fork writes _linked.pdf; once it exists, processing is done.
+    if os.path.exists(output_pdf):
+        return jsonify({'status': 'done'})
+    if os.path.exists(linked_pdf):
+        return jsonify({'status': 'done'})
+    # Check if the original upload still exists (if deleted, something went wrong)
+    original = os.path.join(upload, safe)
+    if not os.path.exists(original):
+        return jsonify({'status': 'error', 'message': 'Upload file not found'})
+    return jsonify({'status': 'running'})
+
+
 @bp.route('/analyze', methods=['POST'])
 def analyze():
     try:
