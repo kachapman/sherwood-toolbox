@@ -403,11 +403,9 @@ def coverage_limit_hypothesis(carrier, contractor, missing, og=None):
 
 def build_narrative(recon):
     """Set recon.narrative: two or three plain sentences a reader can take in at a
-    glance, with the coverage-sublimit warning called out. Deterministic (no model
-    call); qualitative words are picked from the numbers. The statistical tiles
-    stay below it for anyone verifying the math."""
+    glance. Deterministic (no model call); qualitative words are picked from the
+    numbers. The statistical tiles stay below it for anyone verifying the math."""
     out = []
-    clh = next((h for h in recon.hypotheses if h.theme == "COVERAGE_LIMIT"), None)
 
     if recon.mode == "effectiveness":
         pct = round(recon.effectiveness * 100)
@@ -426,8 +424,6 @@ def build_narrative(recon):
             f"checked in green on the carrier pages. {out_count} contractor "
             f"line{'s are' if out_count != 1 else ' is'} still missing, painted in blue and each "
             f"keyed to the contractor line that carries it."})
-        if clh:
-            out.append({"tone": "caution", "text": _secondary_caution(clh)})
     else:
         gap = round(recon.contractor_grand - recon.carrier_grand, 2)
         miss = [s for s in recon.suggestions if s.status == "MISSING"]
@@ -443,20 +439,7 @@ def build_narrative(recon):
             line2 += (f" The carrier also measured {flagged} shared "
                       f"line{'s' if flagged != 1 else ''} short of the contractor.")
         out.append({"tone": "normal", "text": line2})
-        if clh:
-            out.append({"tone": "caution", "text": _secondary_caution(clh)})
     recon.narrative = out
-
-
-def _secondary_caution(clh):
-    """The plain-language secondary-structure policy-limit caution, from the
-    coverage-limit hypothesis. Fires on any denied secondary-structure scope."""
-    return (
-        f"One caution. {_money0(clh.dollars)} of the missing scope is on a secondary "
-        f"structure (a detached building, shed, or garage). If the policy caps that "
-        f"structure with a separate limit, anything on the scope that is pushed past the "
-        f"limit would not necessarily raise the payout. Check the remaining limit before "
-        f"pursuing those items.")
 
 
 # --------------------------------------------------------------------------- #

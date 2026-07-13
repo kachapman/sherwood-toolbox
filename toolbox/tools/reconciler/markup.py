@@ -26,6 +26,7 @@ skipped and the appended pages still carry the full picture.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
@@ -606,7 +607,6 @@ def _summary_page(doc, recon, flagged, missing, located_count, painted_count, wo
                                painted_count, won_count)
     else:
         _summary_recoverable(c, recon, flagged, missing, located_count, painted_count)
-    _summary_footer(c, recon)
 
 
 def _headline_box(c, label, value, sub):
@@ -635,38 +635,17 @@ def _totals3(c, labels, values):
 
 
 def _narrative_block(c, recon):
-    """Lead the summary with the plain-language narrative: normal sentences in
-    readable body text, the caution sentence set off in an amber callout."""
+    """Lead the summary with the plain-language narrative."""
     for s in recon.narrative:
-        if s.get("tone") == "caution":
-            _caution_para(c, s["text"])
-        else:
-            c.text(s["text"], size=10.5, color=INK, gap=8)
+        c.text(s["text"], size=10.5, color=INK, gap=8)
     c.y += 2
 
 
-def _caution_para(c, text):
-    inner = PAGE_W - 2 * MARGIN - 24
-    lines = c._wrapped_lines(text, "helv", 9.5, inner)
-    box_h = 18 + lines * 12 + 8
-    c.space(box_h + 6)
-    top = c.y
-    c.page.draw_rect(fitz.Rect(MARGIN, top, PAGE_W - MARGIN, top + box_h),
-                     color=None, fill=WARN_BG, fill_opacity=1.0)
-    c.page.draw_line(fitz.Point(MARGIN, top), fitz.Point(MARGIN, top + box_h),
-                     color=WARN, width=3)
-    c.page.insert_text(fitz.Point(MARGIN + 12, top + 13), "HEADS UP", fontname="hebo",
-                       fontsize=8, color=WARN)
-    c.y = top + 18
-    c.text(text, size=9.5, x=MARGIN + 12, width=inner, color=INK, gap=0)
-    c.y = top + box_h + 8
-
-
 def _effectiveness_headline(c, recon):
-    """One sage panel carrying the APPROVAL EFFECTIVENESS label, the big percentage,
-    and the money-summary sentence (the first, non-caution, narrative line)."""
+    """One sage panel carrying the APPROVAL RATIO label, the big percentage,
+    and the money-summary sentence."""
     pct = f"{recon.effectiveness * 100:.0f}%"
-    body = next((s["text"] for s in recon.narrative if s.get("tone") != "caution"), "")
+    body = recon.narrative[0]["text"] if recon.narrative else ""
     inner = PAGE_W - 2 * MARGIN - 28
     lines = c._wrapped_lines(body, "helv", 10.5, inner) if body else 0
     box_h = 50 + lines * 13 + 12
@@ -676,7 +655,7 @@ def _effectiveness_headline(c, recon):
                      color=None, fill=SAGE, fill_opacity=1.0)
     c.page.draw_line(fitz.Point(MARGIN, top), fitz.Point(MARGIN, top + box_h),
                      color=GREEN, width=3)
-    c.page.insert_text(fitz.Point(MARGIN + 14, top + 17), "APPROVAL EFFECTIVENESS",
+    c.page.insert_text(fitz.Point(MARGIN + 14, top + 17), "APPROVAL RATIO",
                        fontname="hebo", fontsize=8.5, color=MUTED)
     c.page.insert_text(fitz.Point(MARGIN + 14, top + 42), pct, fontname="hebo",
                        fontsize=22, color=GREEN)
@@ -690,22 +669,29 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
                            won_count):
     c.heading(f"Reconciliation report - {recon.claimant}", size=17)
     _effectiveness_headline(c, recon)
-    caution = next((s["text"] for s in recon.narrative if s.get("tone") == "caution"), None)
-    if caution:
-        _caution_para(c, caution)
     c.y += 4
+    top = c.y
+    gap = 16
+    col_w = (PAGE_W - 2 * MARGIN - gap) / 2
+    row_gap = 30
 
-    _totals3(c, ["Approved to date (original to current)", "Still unapproved",
-                 "Contractor over original"],
-             [_signed_money(recon.approved_dollars), _money(recon.outstanding_dollars),
-              _money(recon.ask_dollars)])
-    c.y += 6
-    _totals3(c, ["Original carrier RCV", "Current carrier RCV", "Contractor RCV"],
-             [_money(recon.og_grand), _money(recon.carrier_grand),
-              _money(recon.contractor_grand)])
-    c.text(f"Original: {recon.og_name}", size=8, color=MUTED, gap=1)
-    c.text(f"Current carrier: {recon.carrier_name}", size=8, color=MUTED, gap=1)
-    c.text(f"Contractor: {recon.contractor_name}", size=8, color=MUTED, gap=10)
+    def metric(col, row, title, value, sub=None):
+        x = MARGIN + col * (col_w + gap)
+        c.page.insert_text(fitz.Point(x, row + 10), title, fontname="hebo",
+                           fontsize=8.2, color=MUTED)
+        c.page.insert_text(fitz.Point(x, row + 29), value, fontname="hebo",
+                           fontsize=14.5, color=GREEN)
+        if sub:
+            c.page.insert_text(fitz.Point(x, row + 41), sub, fontname="helv",
+                               fontsize=7.3, color=MUTED)
+
+    metric(0, top, "Approved to date", _signed_money(recon.approved_dollars))
+    metric(1, top, "Current carrier RCV", _money(recon.carrier_grand))
+    metric(0, top + row_gap, "Original carrier RCV", _money(recon.og_grand))
+    metric(1, top + row_gap, "Contractor RCV", _money(recon.contractor_grand))
+
+    c.y = top + row_gap + 38
+    c.y += 2
 
     c.rule()
     c.subheading("What the markup shows")
@@ -721,7 +707,6 @@ def _summary_effectiveness(c, recon, flagged, missing, located_count, painted_co
            f"blue on the carrier pages by section, keyed to the contractor line "
            f'number. Full list under "Outstanding scope" at the back.', size=10, gap=6)
     _flagged_line(c, flagged, located_count)
-    _legend(c, effectiveness=True)
 
 
 def _summary_recoverable(c, recon, flagged, missing, located_count, painted_count):
@@ -749,7 +734,6 @@ def _summary_recoverable(c, recon, flagged, missing, located_count, painted_coun
            f"in those sections: {painted_count} painted in salmon on the carrier pages "
            f'by section. Full list under "Missing scope" at the back.', size=10, gap=6)
     _flagged_line(c, flagged, located_count)
-    _legend(c, effectiveness=False)
 
 
 def _flagged_line(c, flagged, located_count):
@@ -767,37 +751,6 @@ def _flagged_line(c, flagged, located_count):
                "back.", size=9, color=MUTED, gap=10)
     else:
         c.y += 4
-
-
-def _legend(c, effectiveness):
-    c.subheading("Legend")
-    if effectiveness:
-        _legend_check(c, "Approved: contractor scope now in the carrier estimate; the "
-                         "green amount is the increase over the original")
-        _legend_row(c, OUTSTANDING, "Outstanding: contractor scope the carrier has not approved",
-                    opacity=1.0)
-    else:
-        _legend_row(c, MISSING, "Missing: contractor scope the carrier estimate omits",
-                    opacity=1.0)
-    _legend_row(c, SEVERITIES[0].fill, "Carrier short by $500 or more on a shared line")
-    _legend_row(c, SEVERITIES[1].fill, "Carrier short by $150 to $500 on a shared line")
-    _legend_row(c, SEVERITIES[2].fill, "Carrier short by under $150 on a shared line")
-    if effectiveness:
-        c.text("Each highlighted line shows a dollar amount in the left margin: an "
-               "approved line's increase over the original, or a short line's RCV gap. "
-               "The coloured blocks carry the contractor line number.", size=8.5,
-               color=MUTED, gap=6)
-    else:
-        c.text("Each highlighted line shows its RCV gap in the left margin; the coloured "
-               "blocks carry the contractor line number.", size=8.5, color=MUTED, gap=6)
-
-
-def _summary_footer(c, recon):
-    for n in recon.notes:
-        c.text(f"Note: {n}", size=8.5, color=MUTED, gap=4)
-    c.rule()
-    c.text("An aid to review, not a guarantee of coverage. Figures are read from "
-           "the PDFs as printed. Sherwood Estimates (c) 2026.", size=8, color=MUTED)
 
 
 def _legend_row(c, fill, label, opacity=0.5):
@@ -926,8 +879,6 @@ def _detail_pages(doc, recon, flagged, missing, page_of):
                size=9.5, color=MUTED)
 
     _bridge_section(c, recon)
-    _hypotheses_section(c, recon)
-    _statements_section(c, recon)
     return c.pages
 
 
@@ -1037,6 +988,8 @@ def _hypotheses_section(c, recon):
            "marks a reason the carrier's own estimate states; an amber badge is our "
            "read, for the carrier to confirm.", size=9, color=MUTED, gap=8)
     for h in recon.hypotheses:
+        if h.theme == "COVERAGE_LIMIT":
+            continue
         title = _THEME_TITLES.get(h.theme, h.theme)
         head = title if title == h.label else f"{title} - {h.label}"
         c.subheading(f"{head}   ({_money(h.dollars)})",
@@ -1074,6 +1027,9 @@ def mark_up_carrier(carrier, recon, out_path: str) -> dict:
     the category and position of every carrier line, so missing scope can be
     painted into the right section). Returns a stats dict for logging.
     """
+    if not os.path.exists(carrier.path):
+        raise FileNotFoundError(f"Carrier PDF not found at {carrier.path}. File may have been deleted or moved.")
+    
     flagged = sorted(
         (s for s in recon.shared if s.net_quantity_gap > 1e-6),
         key=lambda s: -(s.net_quantity_gap * s.contractor_unit_price))

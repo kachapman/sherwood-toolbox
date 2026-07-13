@@ -90,6 +90,7 @@
     <div class="panel rec-markup">
       <p class="panel-label">Marked-up carrier estimate</p>
       <p class="muted-note" id="markupNote">The difference is painted onto the carrier PDF. Open the summary page first.</p>
+      <div class="rec-legend-note" id="legendNote" style="display:none;"></div>
       <div class="rec-markup-stats">
         <div class="rec-stat"><span class="rec-stat-num" id="stA">0</span><span class="rec-stat-lbl" id="stALbl"></span><span class="rec-stat-sub" id="stASub"></span></div>
         <div class="rec-stat"><span class="rec-stat-num" id="stB">0</span><span class="rec-stat-lbl" id="stBLbl"></span><span class="rec-stat-sub" id="stBSub"></span></div>
@@ -229,7 +230,7 @@
   }
   function renderEffectiveness(data) {
     const e = data.effectiveness, c = data.counts || {};
-    $('headLabel').textContent = 'Approval effectiveness';
+    $('headLabel').textContent = 'Approval ratio';
     $('headValue').textContent = Math.round((e.rate || 0) * 100) + '%';
     tile(1, 'Approved to date', signedMoney(e.approved), 'original to current');
     tile(2, 'Still unapproved', money(e.outstanding), 'asked, not yet approved');
@@ -239,6 +240,18 @@
     tile(6, 'Contractor RCV', money(e.contractor_grand), '');
     $('totalsRow2').style.display = '';
     $('markupNote').textContent = 'Approved items are marked in green on the carrier pages with the dollar increase over the original in the left margin; unapproved scope is painted in blue by section. Open the summary page first.';
+    $('legendNote').style.display = '';
+    $('legendNote').innerHTML = [
+      '<div class="rec-legend-line rec-legend-title"><strong>Legend</strong></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-approved"></span><span>Approved to date. Carrier lines added or raised since the original estimate.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-outstanding"></span><span>Still unapproved. Contractor-scope lines the carrier has not added.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-high"></span><span>Shared-line shortfall over $500.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-mid"></span><span>Shared-line shortfall from $150 to $500.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-low"></span><span>Shared-line shortfall under $150.</span></div>',
+      '<div class="rec-legend-line">Approved-to-date is the grand-total carrier increase. Shared-line shortfalls are separate item-by-item gaps.</div>',
+      '<div class="rec-legend-line">Effectiveness is measured from grand totals to the cent; the per-item lists use line matching and may not sum to those totals exactly.</div>',
+      '<div class="rec-legend-line">An aid to review, not a guarantee of coverage. Figures are read from the PDFs as printed. Sherwood Estimates (c) 2026.</div>'
+    ].join('');
     stat('A', count(c.missing), 'unapproved items', money(c.missing_dollars) + ', ' + count(c.missing_painted) + ' painted in place');
     stat('B', count(e.won_tagged), 'approved items tagged', 'increase shown in green');
     stat('C', count(c.flagged), 'quantity gaps flagged', c.flagged ? count(c.located) + ' highlighted' : 'none under-measured');
@@ -252,6 +265,8 @@
     tile(3, 'Total RCV gap', money(data.gap), 'contractor minus carrier');
     $('totalsRow2').style.display = 'none';
     $('markupNote').textContent = 'Missing scope is painted in salmon by section; under-measured lines are highlighted in place. Open the summary page first.';
+    $('legendNote').style.display = 'none';
+    $('legendNote').innerHTML = '';
     stat('A', count(c.missing), 'missing line items', c.missing_dollars ? money(c.missing_dollars) + ' in scope, ' + count(c.missing_painted) + ' painted' : '');
     stat('B', count(c.flagged), 'quantity gaps flagged', c.flagged ? count(c.located) + ' of ' + count(c.flagged) + ' highlighted' : 'none under-measured');
     stat('C', count(c.added_pages), 'summary pages added', '');

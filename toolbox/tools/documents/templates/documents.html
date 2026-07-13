@@ -10,14 +10,15 @@
 
   <div class="panel company-theme-surface">
     <h2>Fetch from CRM (optional)</h2>
-    <p class="panel-hint">Paste a CRM job URL to auto-fill the customer and claim fields.</p>
+    <p class="panel-hint">Type a job name or paste a CRM job URL to auto-fill the customer and claim fields.</p>
     <div class="inline-row">
       <div class="field">
-        <label for="crmUrl">CRM job URL</label>
-        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+        <label for="crmQuery">Job name or CRM URL</label>
+        <input type="text" id="crmQuery" placeholder="Job name (e.g. VanWinkle) or CRM URL" autocomplete="off">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Find</button>
     </div>
+    <div id="crmDeals" style="margin-top:8px;"></div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
     {% include "_crm_credentials.html" %}
   </div>
@@ -134,13 +135,78 @@
 <script>
   const DOCS = {
     crm: "{{ url_for('documents.crm_fetch') }}",
+    crmSearch: "{{ url_for('documents.crm_search_route') }}",
+    crmFiles: "{{ url_for('documents.crm_files_route') }}",
     generate: "{{ url_for('documents.generate') }}",
     download: "{{ url_for('documents.download_file', name='__N__') }}",
   };
   function docsDlUrl(name) { return DOCS.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-  // Debounce helper
+  function extractDealId(s) {
+    const m = s.match(/[?&]id=(\d+)/i) || s.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(s.trim()) ? [null, s.trim()] : null);
+    return m ? m[1] : null;
+  }
+
+  async function crmSearch() {
+    const q = $('crmQuery').value.trim();
+    if (!q) { $('crmMsg').textContent = 'Type a job name or paste a CRM job URL.'; return; }
+    $('crmDeals').innerHTML = '';
+    const id = extractDealId(q);
+    if (id) { return crmLoadInfo(id, ''); }
+    $('crmMsg').textContent = 'Searching deals...';
+    try {
+      const fd = new FormData(); fd.append('query', q);
+      const d = await (await fetch(DOCS.crmSearch, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      renderDeals(d.deals);
+    } catch (e) { $('crmMsg').textContent = 'Search failed: ' + e.message; }
+  }
+
+  function renderDeals(deals) {
+    const box = $('crmDeals'); box.innerHTML = '';
+    if (!deals.length) { $('crmMsg').textContent = 'No open deals match that name.'; return; }
+    $('crmMsg').textContent = 'Pick a deal:';
+    deals.forEach(dl => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-secondary'; b.style.display = 'block'; b.style.marginTop = '6px'; b.style.width = '100%'; b.style.textAlign = 'left';
+      b.innerHTML = '<strong>' + esc(dl.title) + '</strong>' + (dl.stage ? '<br><small>' + esc(dl.stage) + '</small>' : '');
+      b.onclick = () => crmLoadInfo(dl.id, dl.title);
+      box.appendChild(b);
+    });
+  }
+
+  async function crmLoadInfo(id, label) {
+    $('crmDeals').innerHTML = '';
+    $('crmMsg').textContent = 'Loading job information...';
+    try {
+      const fd = new FormData(); fd.append('deal_id', String(id));
+      const d = await (await fetch(DOCS.crmFiles, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      $('crmMsg').textContent = (label ? label + ': ' : '') + 'Fetching details...';
+      const fd2 = new FormData(); fd2.append('url', 'https://office.publicadjustermidwest.com/opportunity/' + id);
+      const r = await fetch(DOCS.crm, { method: 'POST', body: fd2 });
+      const data = await r.json();
+      if (data.ok) {
+        const info = data.info || {};
+        if (info.customer_name) $('customer_name').value = info.customer_name;
+        if (info.claim_number) $('insurance_claim').value = info.claim_number;
+        if (info.job_id) $('job_number').value = info.job_id;
+        if (info.sales_rep) $('sales_rep').value = info.sales_rep;
+        if (info.street) $('street').value = info.street;
+        else if (info.job_location) $('street').value = info.job_location;
+        if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
+        $('crmMsg').textContent = 'Fields filled from CRM.';
+      } else {
+        $('crmMsg').textContent = 'Loaded deal but could not fetch full details.';
+      }
+    } catch (e) { $('crmMsg').textContent = 'Could not load information: ' + e.message; }
+  }
+
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
   function debounce(fn, ms) {
     var timer;
     return function() {
@@ -165,7 +231,6 @@
       if ($('include_nts').checked) total += 150.00;
       lineRows().forEach(r => { total += parseFloat(r.amount) || 0; });
       $('grandTotal').textContent = total.toFixed(2);
-      console.log('[docs] recalc:', {total: total.toFixed(2), lines: lineRows().length});
     }, 80);
   }
 
@@ -181,7 +246,6 @@
     tr.querySelector('.li-amt').addEventListener('input', recalc);
     tr.querySelector('.li-del').addEventListener('click', () => { tr.remove(); recalc(); });
 
-    // Drag-to-reorder
     tr.addEventListener('dragstart', function(e) {
       dragRow = tr;
       tr.style.opacity = '0.4';
@@ -215,25 +279,6 @@
   }
   $('addLineBtn').addEventListener('click', () => addLine());
 
-  const crmBtn = $('crmFetchBtn');
-  if (crmBtn) crmBtn.addEventListener('click', async () => {
-    const msg = $('crmMsg'); msg.textContent = 'Looking up...';
-    const fd = new FormData(); fd.append('url', $('crmUrl').value);
-    try {
-      const r = await fetch(DOCS.crm, { method: 'POST', body: fd });
-      const data = await r.json();
-      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
-      const info = data.info || {};
-      if (info.customer_name) $('customer_name').value = info.customer_name;
-      if (info.claim_number) $('insurance_claim').value = info.claim_number;
-      if (info.job_id) $('job_number').value = info.job_id;
-      if (info.sales_rep) $('sales_rep').value = info.sales_rep;
-      if (info.street) $('street').value = info.street;
-      else if (info.job_location) $('street').value = info.job_location;
-      if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
-      msg.textContent = 'Fields filled from CRM.';
-    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
-  });
 
   async function generate(docType) {
     const msg = $('genMsg'); msg.textContent = 'Generating...';

@@ -2,8 +2,8 @@
 Type=Application
 Name=Sherwood Toolbox
 Comment=Local estimating tools, runs offline
-Exec=__VENV_PY__ __REPO__/run/standalone.py
-Icon=__REPO__/toolbox/core/static/img/logo.png
+Exec=env TOOLBOX_PORT=8767 /home/workpc/Documents/projects/kens_toolbox/sherwood-toolbox/.venv/bin/python /home/workpc/Documents/projects/kens_toolbox/sherwood-toolbox/run/desktop.py
+Icon=/home/workpc/Documents/projects/kens_toolbox/sherwood-toolbox/toolbox/core/static/img/logo.png
 Terminal=false
 Categories=Office;Utility;
 StartupNotify=true

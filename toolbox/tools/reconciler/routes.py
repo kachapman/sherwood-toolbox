@@ -27,7 +27,6 @@ bp = Blueprint(
     __name__,
     template_folder="templates",
     static_folder="static",
-    static_url_path="static",
 )
 
 # The playbook powers the secondary "commonly added" projection; it is bundled
@@ -374,6 +373,13 @@ def run():
         # Paint the difference onto the carrier estimate: the primary deliverable.
         markup_name = f"{claimant}-carrier-markup.pdf"
         markup_path = os.path.join(_upload_dir(), markup_name)
+        
+        if not os.path.exists(carrier_path):
+            print(f"[reconciler] ERROR: Carrier file missing at {carrier_path}")
+            print(f"[reconciler] Carrier object path: {carrier.path}")
+            return _file_error("Carrier PDF file was deleted unexpectedly before processing. Please re-upload and try again.")
+        
+        print(f"[reconciler] Processing carrier: {carrier_path}")
         stats = markup.mark_up_carrier(carrier, recon, markup_path)
 
         # Carrier PDF has served its purpose; keep no raw upload.

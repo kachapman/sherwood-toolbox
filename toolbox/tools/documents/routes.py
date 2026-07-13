@@ -24,6 +24,7 @@ from restoration_common import (InvoicePDFGenerator, COCPDFGenerator,
 
 from ...config import Config
 from ...core.crm import fetch_job_info
+from ...core import crm_search
 
 bp = Blueprint("documents", __name__, template_folder="templates")
 
@@ -72,6 +73,34 @@ def index():
 @bp.route("/crm-fetch", methods=["POST"])
 def crm_fetch():
     return jsonify(fetch_job_info(request.form.get("url", "")))
+
+
+@bp.route("/crm-search", methods=["POST"])
+def crm_search_route():
+    query = (request.form.get("query") or "").strip()
+    if len(query) < 2:
+        return jsonify({"ok": False, "error": "Type at least two characters."})
+    try:
+        return jsonify({"ok": True, "deals": crm_search.search_deals(query)})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"CRM search failed: {e}"})
+
+
+@bp.route("/crm-files", methods=["POST"])
+def crm_files_route():
+    deal_id = (request.form.get("deal_id") or "").strip()
+    if not deal_id.isdigit():
+        return jsonify({"ok": False, "error": "Pick a deal first."})
+    try:
+        result = crm_search.deal_files(deal_id)
+        return jsonify({"ok": True, **result})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not list the deal's files: {e}"})
+
 
 
 def _money(value):

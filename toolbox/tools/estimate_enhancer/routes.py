@@ -21,6 +21,7 @@ from pypdf import PdfReader, PdfWriter
 from werkzeug.utils import secure_filename
 
 from ...config import Config
+from ...core import crm_search
 from . import pdf_ops
 from .pdf_ops import CODE_REF_HL_HEX
 from .utils.markup_bridge import add_image_links
@@ -30,7 +31,6 @@ bp = Blueprint(
     __name__,
     template_folder="templates",
     static_folder="static",
-    static_url_path="static",
 )
 
 ATTACHMENTS_DIR = Path(__file__).resolve().parent / "attachments"
@@ -122,6 +122,34 @@ def process_with_fork(input_pdf, output_pdf, fork_highlight_rules=None):
 @bp.route('/')
 def index():
     return render_template('estimate_enhancer.html', documents=get_document_options())
+
+
+@bp.route('/crm-search', methods=['POST'])
+def crm_search_route():
+    query = (request.form.get("query") or "").strip()
+    if len(query) < 2:
+        return jsonify({"ok": False, "error": "Type at least two characters."})
+    try:
+        return jsonify({"ok": True, "deals": crm_search.search_deals(query)})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"CRM search failed: {e}"})
+
+
+@bp.route('/crm-files', methods=['POST'])
+def crm_files_route():
+    deal_id = (request.form.get("deal_id") or "").strip()
+    if not deal_id.isdigit():
+        return jsonify({"ok": False, "error": "Pick a deal first."})
+    try:
+        result = crm_search.deal_files(deal_id)
+        return jsonify({"ok": True, **result})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not list the deal's files: {e}"})
+
 
 
 @bp.route('/test', methods=['GET', 'POST'])

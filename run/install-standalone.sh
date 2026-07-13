@@ -46,7 +46,7 @@ chmod +x "$APPS_DIR/sherwood-toolbox.desktop"
 update-desktop-database "$APPS_DIR" 2>/dev/null || true
 
 echo "[5/6] Adding the sherwood-toolbox alias (zsh and/or bash)"
-ALIAS_LINE="alias sherwood-toolbox='$VENV_PY $REPO/run/standalone.py'"
+ALIAS_LINE="alias sherwood-toolbox='TOOLBOX_PORT=8767 $VENV_PY $REPO/run/desktop.py'"
 changed=0
 for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
   [ -f "$rc" ] || continue
@@ -58,7 +58,7 @@ for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
   fi
 done
 [ "$changed" = 0 ] && [ ! -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.bashrc" ] && \
-  echo "  no ~/.zshrc or ~/.bashrc found; run directly with: $VENV_PY $REPO/run/standalone.py"
+  echo "  no ~/.zshrc or ~/.bashrc found; run directly with: TOOLBOX_PORT=8767 $VENV_PY $REPO/run/desktop.py"
 
 echo "[6/6] Installing bundled signatures (if provided; never overwriting)"
 if [ -f "$REPO/config/signatures.json" ]; then

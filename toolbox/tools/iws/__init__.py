@@ -12,6 +12,7 @@ import fitz
 from flask import Blueprint, jsonify, render_template, request, send_file, url_for
 
 from ...config import Config
+from ...core import crm_search
 
 bp = Blueprint(
     "iws",
@@ -44,6 +45,31 @@ def _sweep_stale(max_age=1800):
 @bp.route("/")
 def index():
     return render_template("iws.html")
+
+
+@bp.route("/crm-search", methods=["POST"])
+def crm_search_route():
+    query = (request.get_json(silent=True) or {}).get("query", "").strip()
+    if not query:
+        return jsonify({"ok": False, "error": "Empty query"}), 400
+    try:
+        deals = crm_search.search_deals(query)
+        return jsonify({"ok": True, "deals": deals})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+
+@bp.route("/crm-files", methods=["POST"])
+def crm_files_route():
+    deal_id = (request.get_json(silent=True) or {}).get("deal_id")
+    if not deal_id:
+        return jsonify({"ok": False, "error": "Missing deal_id"}), 400
+    try:
+        files = crm_search.deal_files(deal_id)
+        return jsonify({"ok": True, "files": files, "deal_id": deal_id})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
 
 
 @bp.route("/pdf", methods=["POST"])

@@ -10,14 +10,15 @@
 <form id="prForm">
   <div class="panel company-theme-surface">
     <h2>Fetch from CRM (optional)</h2>
-    <p class="panel-hint">Paste a CRM job URL to auto-fill customer, claim, and location.</p>
+    <p class="panel-hint">Type a job name or paste a CRM job URL to auto-fill customer, claim, and location.</p>
     <div class="inline-row">
       <div class="field">
-        <label for="crmUrl">CRM job URL</label>
-        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+        <label for="crmQuery">Job name or CRM URL</label>
+        <input type="text" id="crmQuery" placeholder="Job name (e.g. VanWinkle) or CRM URL" autocomplete="off">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Find</button>
     </div>
+    <div id="crmDeals" style="margin-top:8px;"></div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
     {% include "_crm_credentials.html" %}
   </div>
@@ -86,11 +87,74 @@
 <script>
   const PR = {
     crm: "{{ url_for('photo_report.crm_fetch') }}",
+    crmSearch: "{{ url_for('photo_report.crm_search_route') }}",
+    crmFiles: "{{ url_for('photo_report.crm_files_route') }}",
     generate: "{{ url_for('photo_report.generate') }}",
     download: "{{ url_for('photo_report.download_file', name='__N__') }}",
   };
   function prDlUrl(name) { return PR.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function extractDealId(s) {
+    const m = s.match(/[?&]id=(\d+)/i) || s.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(s.trim()) ? [null, s.trim()] : null);
+    return m ? m[1] : null;
+  }
+
+  async function crmSearch() {
+    const q = $('crmQuery').value.trim();
+    if (!q) { $('crmMsg').textContent = 'Type a job name or paste a CRM job URL.'; return; }
+    $('crmDeals').innerHTML = '';
+    const id = extractDealId(q);
+    if (id) { return crmLoadInfo(id, ''); }
+    $('crmMsg').textContent = 'Searching deals...';
+    try {
+      const fd = new FormData(); fd.append('query', q);
+      const d = await (await fetch(PR.crmSearch, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      renderDeals(d.deals);
+    } catch (e) { $('crmMsg').textContent = 'Search failed: ' + e.message; }
+  }
+
+  function renderDeals(deals) {
+    const box = $('crmDeals'); box.innerHTML = '';
+    if (!deals.length) { $('crmMsg').textContent = 'No open deals match that name.'; return; }
+    $('crmMsg').textContent = 'Pick a deal:';
+    deals.forEach(dl => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-secondary'; b.style.display = 'block'; b.style.marginTop = '6px'; b.style.width = '100%'; b.style.textAlign = 'left';
+      b.innerHTML = '<strong>' + esc(dl.title) + '</strong>' + (dl.stage ? '<br><small>' + esc(dl.stage) + '</small>' : '');
+      b.onclick = () => crmLoadInfo(dl.id, dl.title);
+      box.appendChild(b);
+    });
+  }
+
+  async function crmLoadInfo(id, label) {
+    $('crmDeals').innerHTML = '';
+    $('crmMsg').textContent = 'Loading job information...';
+    try {
+      const fd = new FormData(); fd.append('deal_id', String(id));
+      const d = await (await fetch(PR.crmFiles, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      $('crmMsg').textContent = (label ? label + ': ' : '') + 'Fetching details...';
+      const fd2 = new FormData(); fd2.append('url', 'https://office.publicadjustermidwest.com/opportunity/' + id);
+      const r = await fetch(PR.crm, { method: 'POST', body: fd2 });
+      const data = await r.json();
+      if (data.ok) {
+        const info = data.info || {};
+        const map = { customer_name: 'customer_name', claim_number: 'claim_number',
+                      job_location: 'job_location', job_id: 'job_id' };
+        Object.keys(map).forEach(function(k) { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
+        $('crmMsg').textContent = 'Fields filled from CRM.';
+      } else {
+        $('crmMsg').textContent = 'Loaded deal but could not fetch full details.';
+      }
+    } catch (e) { $('crmMsg').textContent = 'Could not load information: ' + e.message; }
+  }
+
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
 
   // Photo management: reorderable grid with captions
   let photoFiles = [];      // File objects in current order
@@ -195,23 +259,9 @@
     updatePhotoCount();
   });
 
-  const crmBtn = $('crmFetchBtn');
-  if (crmBtn) crmBtn.addEventListener('click', async function() {
-    const msg = $('crmMsg');
-    msg.textContent = 'Looking up...';
-    const fd = new FormData();
-    fd.append('url', $('crmUrl').value);
-    try {
-      const r = await fetch(PR.crm, { method: 'POST', body: fd });
-      const data = await r.json();
-      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
-      const info = data.info || {};
-      const map = { customer_name: 'customer_name', claim_number: 'claim_number',
-                    job_location: 'job_location', job_id: 'job_id' };
-      Object.keys(map).forEach(function(k) { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
-      msg.textContent = 'Fields filled from CRM.';
-    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
-  });
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
 
   $('prForm').addEventListener('submit', async function(e) {
     e.preventDefault();

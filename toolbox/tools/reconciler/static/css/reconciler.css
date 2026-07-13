@@ -127,6 +127,27 @@
 
 /* Marked-up carrier estimate result panel */
 .rec-markup { border-left: 4px solid var(--green-800); }
+.rec-legend-note {
+  margin: 8px 0 14px; padding: 10px 12px; border: 1px solid var(--line);
+  border-left: 4px solid var(--green-500); border-radius: 8px; background: var(--sage-50);
+  font-size: 0.82rem; line-height: 1.45; color: var(--ink);
+}
+.rec-legend-note .rec-legend-title { margin: 0 0 8px; }
+.rec-legend-note .rec-legend-line { margin: 0 0 4px; }
+.rec-legend-note .rec-legend-line:last-child { margin-bottom: 0; }
+.rec-legend-row {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
+}
+.rec-legend-row:last-of-type { margin-bottom: 0; }
+.rec-legend-swatch {
+  width: 18px; height: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 2px;
+  flex: 0 0 18px;
+}
+.rec-legend-approved { background: #12a150; }
+.rec-legend-outstanding { background: #4c38d6; }
+.rec-legend-short-high { background: #ee6a6a; }
+.rec-legend-short-mid { background: #f6b0b0; }
+.rec-legend-short-low { background: #f8cb73; }
 .rec-markup-stats {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
   margin: 4px 0 16px;

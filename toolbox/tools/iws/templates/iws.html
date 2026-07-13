@@ -9,6 +9,19 @@
 {% block content %}
 <div class="panel">
   <h2>Project and roof inputs</h2>
+  
+  <div class="crm-panel">
+    <h3>CRM Lookup</h3>
+    <div class="form-row">
+      <div class="form-field">
+        <label for="crmQuery">Type a job name or paste a CRM deal URL</label>
+        <input type="text" id="crmQuery" placeholder="Enter job name or CRM URL">
+      </div>
+      <button type="button" id="crmFetchBtn" class="btn btn-secondary">Search CRM</button>
+    </div>
+    <div id="crmDeals"></div>
+  </div>
+  
   <div class="form-grid">
     <div class="field full">
       <label for="projectName">Project Name</label>
@@ -134,4 +147,81 @@
 
 {% block extra_scripts %}
   <script src="{{ url_for('iws.static', filename='js/calculator.js') }}"></script>
+  <script>
+    const IWS = {
+      crmSearch: "{{ url_for('iws.crm_search_route') }}",
+      crmFiles: "{{ url_for('iws.crm_files_route') }}"
+    };
+
+    function extractDealId(input) {
+      if (/^\d+$/.test(input)) return input;
+      const m = input.match(/\/crm\/opportunity\/(\d+)/);
+      return m ? m[1] : null;
+    }
+
+    function crmSearch() {
+      const query = document.getElementById("crmQuery").value.trim();
+      if (!query) {
+        document.getElementById("crmDeals").innerHTML = "";
+        return;
+      }
+      fetch(IWS.crmSearch, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) renderDeals(d.deals);
+          else alert("Error: " + (d.error || "Unknown error"));
+        })
+        .catch(e => alert("Fetch error: " + e.message));
+    }
+
+    function renderDeals(deals) {
+      if (!deals.length) {
+        document.getElementById("crmDeals").innerHTML = "<p>No deals found.</p>";
+        return;
+      }
+      const html = deals
+        .map(d => `
+          <button type="button" class="deal-btn" data-deal-id="${d.id}">
+            <strong>${d.name}</strong><br>
+            <small>${d.city}, ${d.stage}</small>
+          </button>
+        `)
+        .join("");
+      document.getElementById("crmDeals").innerHTML = html;
+      document.querySelectorAll(".deal-btn").forEach(btn => {
+        btn.addEventListener("click", () => crmLoadInfo(btn.dataset.dealId));
+      });
+    }
+
+    function crmLoadInfo(dealId) {
+      fetch(IWS.crmFiles, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: dealId })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            document.getElementById("crmQuery").value = "";
+            document.getElementById("crmDeals").innerHTML = "";
+          } else alert("Error: " + (d.error || "Unknown error"));
+        })
+        .catch(e => alert("Fetch error: " + e.message));
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const crmBtn = document.getElementById("crmFetchBtn");
+      const crmQuery = document.getElementById("crmQuery");
+      if (crmBtn) crmBtn.addEventListener("click", crmSearch);
+      if (crmQuery) {
+        crmQuery.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") crmSearch();
+        });
+      }
+    });
+  </script>
 {% endblock %}
