@@ -241,12 +241,15 @@
       })
         .then(r => r.json())
         .then(d => {
-          if (d.ok) {
+          if (d.ok && d.files) {
             document.getElementById("crmQuery").value = "";
             document.getElementById("crmDeals").innerHTML = "";
             populateFileDropdown(d.files);
             document.getElementById("crmFilesSection").classList.remove("hidden");
-          } else alert("Error: " + (d.error || "Unknown error"));
+          } else {
+            const errorMsg = d.error || "Failed to load files";
+            alert("Error: " + errorMsg);
+          }
         })
         .catch(e => alert("Fetch error: " + e.message));
     }
@@ -255,7 +258,7 @@
       const select = document.getElementById("roofMeasurementFile");
       select.innerHTML = '<option value="">Select a file...</option>';
       
-      if (!files || files.length === 0) {
+      if (!files || !Array.isArray(files) || files.length === 0) {
         const option = document.createElement("option");
         option.textContent = "No files available";
         option.disabled = true;
