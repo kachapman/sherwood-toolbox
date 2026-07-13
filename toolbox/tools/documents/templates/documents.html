@@ -181,12 +181,8 @@
     $('crmDeals').innerHTML = '';
     $('crmMsg').textContent = 'Loading job information...';
     try {
-      const fd = new FormData(); fd.append('deal_id', String(id));
-      const d = await (await fetch(DOCS.crmFiles, { method: 'POST', body: fd })).json();
-      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
-      $('crmMsg').textContent = (label ? label + ': ' : '') + 'Fetching details...';
-      const fd2 = new FormData(); fd2.append('url', 'https://office.publicadjustermidwest.com/opportunity/' + id);
-      const r = await fetch(DOCS.crm, { method: 'POST', body: fd2 });
+      const fd = new FormData(); fd.append('url', 'https://office.publicadjustermidwest.com/opportunity/' + id);
+      const r = await fetch(DOCS.crm, { method: 'POST', body: fd });
       const data = await r.json();
       if (data.ok) {
         const info = data.info || {};
@@ -199,7 +195,7 @@
         if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
         $('crmMsg').textContent = 'Fields filled from CRM.';
       } else {
-        $('crmMsg').textContent = 'Loaded deal but could not fetch full details.';
+        $('crmMsg').textContent = data.error || 'Could not fetch job details.';
       }
     } catch (e) { $('crmMsg').textContent = 'Could not load information: ' + e.message; }
   }
