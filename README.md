@@ -25,6 +25,9 @@ All processing happens locally on your machine. Uploaded files stay on your syst
 - **Documents**  
   Create invoices and certificates of completion, with CRM auto-fill, line items, signatures, and company branding.
 
+- **Estimate Reconciler**  
+  Upload a carrier insurance estimate and a contractor Xactimate estimate for the same claim. The tool marks up the carrier PDF: a summary page with the Replacement Cost Value (RCV) gap and estimated recoverable, the line items the contractor measured higher highlighted in place and colored by how large the dollar gap is, and the missing scope and Overhead & Profit listed by category on appended pages. The full line-by-line breakdown, the RCV bridge, and the carrier's quoted coverage statements are written to a per-run log on the machine rather than shown on screen.
+
 ## Features
 
 - Native desktop window (pywebview) with proper Save As dialogs
@@ -83,10 +86,21 @@ python3 run/standalone.py
 
 Then open the URL printed in the terminal.
 
+### Optional dependency: Tesseract OCR
+
+The Estimate Reconciler reads text-based PDFs with no extra software. For image-only (scanned) estimates it uses Tesseract OCR when it is installed, and otherwise shows a clear message and continues without crashing. To enable OCR:
+
+```bash
+sudo apt-get install tesseract-ocr        # Debian/Ubuntu/Zorin
+sudo dnf install tesseract                 # Fedora
+```
+
+No other tool requires Tesseract.
+
 ## Project Structure
 
 - `toolbox/` — Core Flask application and shared assets
-- `toolbox/tools/` — Individual tools (estimate_enhancer, iws, photo_report, documents)
+- `toolbox/tools/` — Individual tools (estimate_enhancer, iws, photo_report, documents, reconciler)
 - `vendor/restoration-common/` — Vendored PDF generators and CRM helpers
 - `run/` — Launchers and packaging scripts
 - `debian/` — Debian package metadata

@@ -12,12 +12,23 @@ from ..config import Config
 def _network_reachable(timeout=0.6):
     if Config.OFFLINE:
         return False
+    probes = [("1.1.1.1", 53)]
     try:
-        socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("1.1.1.1", 53))
-        return True
-    except OSError:
-        return False
+        from .crm_search import CRM_BASE_URL
+        from urllib.parse import urlparse
+        host = urlparse(CRM_BASE_URL).hostname
+        if host:
+            probes.append((host, 443))
+    except Exception:
+        pass
+    for host, port in probes:
+        try:
+            socket.setdefaulttimeout(timeout if port == 53 else 2.0)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+            return True
+        except OSError:
+            continue
+    return False
 
 
 def _crm_configured():

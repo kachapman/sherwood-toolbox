@@ -1,0 +1,61 @@
+/* Photo Report components: reorderable photo grid with captions.
+   Loaded only on this tool's page, after toolbox.css. */
+
+.pr-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.pr-photo-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: var(--sage-50);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: grab;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pr-photo-card:active { cursor: grabbing; }
+.pr-photo-card.pr-dragging { opacity: 0.4; border-style: dashed; }
+.pr-photo-card.pr-drag-over { border-color: var(--green-500); box-shadow: 0 0 0 2px rgba(74,124,82,0.2); }
+.pr-photo-thumb {
+  flex: 0 0 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.pr-photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pr-photo-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pr-photo-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pr-photo-caption {
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+}
+.pr-photo-caption:focus { outline: 2px solid var(--green-500); outline-offset: 1px; }
+.pr-photo-remove {
+  align-self: flex-start;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  min-width: 0;
+  line-height: 1;
+}
+@media (max-width: 600px) {
+  .pr-photo-grid { grid-template-columns: 1fr; }
+}

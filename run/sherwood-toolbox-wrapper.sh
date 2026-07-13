@@ -14,8 +14,8 @@ if [ ! -f "$USER_SIG" ] && [ -f "$BUNDLE_SIG" ]; then
     cp "$BUNDLE_SIG" "$USER_SIG"
 fi
 
-# Use a stable port that does not conflict with the Vanguard Adjusting Dashboard
-# already listening on 8765 on this machine. Users can override with TOOLBOX_PORT.
-export TOOLBOX_PORT="${TOOLBOX_PORT:-8766}"
+# Use a stable port that does not conflict with the old packaged launcher.
+# Users can override with TOOLBOX_PORT.
+export TOOLBOX_PORT="${TOOLBOX_PORT:-8767}"
 
 exec "$VENV_PY" "$APP_DIR/run/desktop.py" "$@"

@@ -21,6 +21,7 @@ from pypdf import PdfReader, PdfWriter
 from werkzeug.utils import secure_filename
 
 from ...config import Config
+from ...core import crm_search
 from . import pdf_ops
 from .pdf_ops import CODE_REF_HL_HEX
 from .utils.markup_bridge import add_image_links
@@ -30,7 +31,6 @@ bp = Blueprint(
     __name__,
     template_folder="templates",
     static_folder="static",
-    static_url_path="static",
 )
 
 ATTACHMENTS_DIR = Path(__file__).resolve().parent / "attachments"
@@ -124,9 +124,64 @@ def index():
     return render_template('estimate_enhancer.html', documents=get_document_options())
 
 
+@bp.route('/crm-search', methods=['POST'])
+def crm_search_route():
+    query = (request.form.get("query") or "").strip()
+    if len(query) < 2:
+        return jsonify({"ok": False, "error": "Type at least two characters."})
+    try:
+        return jsonify({"ok": True, "deals": crm_search.search_deals(query)})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"CRM search failed: {e}"})
+
+
+@bp.route('/crm-files', methods=['POST'])
+def crm_files_route():
+    deal_id = (request.form.get("deal_id") or "").strip()
+    if not deal_id.isdigit():
+        return jsonify({"ok": False, "error": "Pick a deal first."})
+    try:
+        result = crm_search.deal_files(deal_id)
+        return jsonify({"ok": True, **result})
+    except crm_search.CrmError as e:
+        return jsonify({"ok": False, "error": str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not list the deal's files: {e}"})
+
+
+
 @bp.route('/test', methods=['GET', 'POST'])
 def test():
     return jsonify({'test': 'ok'})
+
+
+@bp.route('/progress/<filename>')
+def progress(filename):
+    """Poll whether the fork subprocess has finished. Returns {status: 'running'|'done'|'error'}."""
+    safe = secure_filename(filename or '')
+    if not safe:
+        return jsonify({'status': 'error', 'message': 'Invalid filename'})
+    upload = _upload_dir()
+    output_pdf = os.path.join(upload, safe + '.output.pdf')
+    linked_pdf = os.path.join(upload, safe.replace('.pdf', '') + '_linked.pdf')
+    original = os.path.join(upload, safe)
+    output_exists = os.path.exists(output_pdf)
+    linked_exists = os.path.exists(linked_pdf)
+    original_exists = os.path.exists(original)
+    print(f"[ee] progress: file={safe}, output={output_exists}, "
+          f"linked={linked_exists}, original={original_exists}")
+    # The fork writes _linked.pdf; once it exists, processing is done.
+    if os.path.exists(output_pdf):
+        return jsonify({'status': 'done'})
+    if os.path.exists(linked_pdf):
+        return jsonify({'status': 'done'})
+    # Check if the original upload still exists (if deleted, something went wrong)
+    original = os.path.join(upload, safe)
+    if not os.path.exists(original):
+        return jsonify({'status': 'error', 'message': 'Upload file not found'})
+    return jsonify({'status': 'running'})
 
 
 @bp.route('/analyze', methods=['POST'])

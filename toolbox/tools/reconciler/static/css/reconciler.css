@@ -1,0 +1,171 @@
+/* Estimate Reconciler components, built on the shared toolbox tokens. Loaded
+   only on this tool's page, after toolbox.css. Chrome, panels, buttons, and the
+   .lineitems table come from toolbox.css; this file covers the two-file upload
+   row, the summary strip, alerts, and bridge-table accents. */
+
+.rec-flow { max-width: 940px; }
+
+.panel-label { display: flex; align-items: center; gap: 8px; }
+.panel-count { color: var(--muted); font-weight: 600; }
+.muted-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; }
+
+.rec-optional {
+  font-weight: 600; font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--muted);
+  background: var(--sage-100); border-radius: 999px; padding: 1px 7px; margin-left: 4px;
+}
+
+/* CRM fetch panel */
+.rec-crm-panel { border-left: 4px solid var(--green-500); }
+.rec-crm-row { display: flex; gap: 10px; align-items: stretch; }
+.rec-crm-row input {
+  flex: 1; border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; font-size: 0.9rem; background: #fff;
+}
+.rec-crm-deals { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.rec-deal {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  text-align: left; padding: 9px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff; cursor: pointer; font: inherit;
+}
+.rec-deal:hover { background: var(--sage-50); border-color: var(--green-500); }
+.rec-deal-title { font-weight: 600; color: var(--green-900); font-size: 0.9rem; }
+.rec-deal-stage { font-size: 0.74rem; color: var(--muted); white-space: nowrap; }
+.rec-crm-status { margin: 10px 0 0; font-size: 0.84rem; color: var(--muted); }
+.rec-crm-status:empty { display: none; }
+
+/* Three estimate slots */
+.rec-slots { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.rec-slot { display: flex; flex-direction: column; gap: 6px; }
+.rec-slot label { font-weight: 600; font-size: 0.9rem; color: var(--green-900); }
+.rec-doc-select {
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  padding: 9px 10px; font-size: 0.84rem; max-width: 100%;
+}
+.rec-doc-select optgroup {
+  font-weight: 700; font-style: normal; color: var(--green-800);
+  background: var(--sage-50);
+}
+.rec-doc-select option {
+  padding: 6px 8px; color: var(--ink); background: #fff;
+  border-bottom: 1px solid var(--sage-100);
+}
+.rec-slot input[type="file"] {
+  border: 1px dashed var(--line); border-radius: 8px;
+  background: var(--sage-50); padding: 9px; font-size: 0.82rem;
+}
+@media (max-width: 720px) { .rec-slots { grid-template-columns: 1fr; } }
+
+/* Second totals row (effectiveness: original / current / contractor RCV),
+   same size as the first row, separated by a rule. */
+.rec-totals-2 { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* Plain-language narrative: the quick read, above the statistical tiles. */
+.rec-narrative { border-left: 4px solid var(--green-800); }
+.rec-narr { font-size: 1.02rem; line-height: 1.55; color: var(--ink); margin: 0 0 10px; }
+.rec-narr:last-child { margin-bottom: 0; }
+.rec-narr-caution {
+  background: #f6efd9; border-left: 4px solid #b8912b; color: #6d5a1d;
+  padding: 10px 14px; border-radius: 0 8px 8px 0; font-weight: 500;
+}
+
+/* Loading */
+.loading { text-align: center; padding: 28px; }
+.spinner-border {
+  display: inline-block; width: 2rem; height: 2rem;
+  border: 3px solid var(--line); border-top-color: var(--green-800);
+  border-radius: 50%; animation: rec-spin 0.8s linear infinite;
+}
+@keyframes rec-spin { to { transform: rotate(360deg); } }
+
+/* Summary strip */
+.rec-summary { border-left: 4px solid var(--green-800); }
+.rec-headline {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding-bottom: 12px;
+  border-bottom: 1px solid var(--line); margin-bottom: 12px;
+}
+.rec-recoverable-label {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.rec-recoverable { font-size: 1.8rem; font-weight: 700; color: var(--green-800); }
+.rec-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.rec-totals > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rec-t-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted);
+}
+.rec-t-val { font-size: 1.15rem; font-weight: 700; color: var(--green-900); }
+.rec-t-sub {
+  font-size: 0.72rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 720px) { .rec-totals { grid-template-columns: 1fr; } }
+
+/* O&P applied flags */
+.rec-op {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.rec-op-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted);
+}
+.rec-op-flag { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--ink); }
+.rec-op-flag input { width: 16px; height: 16px; accent-color: var(--green-800); }
+
+/* Alerts */
+.rec-alert {
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;
+  font-size: 0.86rem; line-height: 1.4;
+}
+.rec-alert-info { background: var(--sage-50); border-left: 3px solid var(--green-500); color: var(--ink); }
+.rec-alert-warn { background: #f6efd9; border: 1px solid #d8d1bf; border-left: 4px solid #b8912b; color: #6d5a1d; }
+/* The run-error text keeps the message's own line breaks (\n between sentences). */
+#errorText { white-space: pre-line; }
+
+/* Marked-up carrier estimate result panel */
+.rec-markup { border-left: 4px solid var(--green-800); }
+.rec-legend-note {
+  margin: 8px 0 14px; padding: 10px 12px; border: 1px solid var(--line);
+  border-left: 4px solid var(--green-500); border-radius: 8px; background: var(--sage-50);
+  font-size: 0.82rem; line-height: 1.45; color: var(--ink);
+}
+.rec-legend-note .rec-legend-title { margin: 0 0 8px; }
+.rec-legend-note .rec-legend-line { margin: 0 0 4px; }
+.rec-legend-note .rec-legend-line:last-child { margin-bottom: 0; }
+.rec-legend-row {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
+}
+.rec-legend-row:last-of-type { margin-bottom: 0; }
+.rec-legend-swatch {
+  width: 18px; height: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 2px;
+  flex: 0 0 18px;
+}
+.rec-legend-approved { background: #12a150; }
+.rec-legend-outstanding { background: #4c38d6; }
+.rec-legend-short-high { background: #ee6a6a; }
+.rec-legend-short-mid { background: #f6b0b0; }
+.rec-legend-short-low { background: #f8cb73; }
+.rec-markup-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  margin: 4px 0 16px;
+}
+.rec-stat {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px; background: var(--sage-50);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.rec-stat-num { font-size: 1.6rem; font-weight: 700; color: var(--green-800); line-height: 1.1; }
+.rec-stat-lbl { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+.rec-stat-sub { font-size: 0.74rem; color: var(--muted); min-height: 0.9em; }
+.rec-log-note {
+  margin: 12px 0 0; font-size: 0.78rem; color: var(--muted); word-break: break-all;
+}
+@media (max-width: 720px) { .rec-markup-stats { grid-template-columns: 1fr; } }
+
+/* Post-to-CRM action under the download button */
+.rec-post-crm { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.rec-post-crm .rec-crm-status { margin: 0; }
+.rec-post-crm .rec-crm-status.rec-ok { color: var(--green-800); font-weight: 600; white-space: pre-line; }

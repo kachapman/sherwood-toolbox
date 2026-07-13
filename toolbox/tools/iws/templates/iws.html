@@ -9,6 +9,36 @@
 {% block content %}
 <div class="panel">
   <h2>Project and roof inputs</h2>
+  
+  <div class="crm-panel">
+    <h3>CRM Lookup</h3>
+    <div class="form-row">
+      <div class="form-field">
+        <label for="crmQuery">Type a job name or paste a CRM deal URL</label>
+        <input type="text" id="crmQuery" placeholder="Enter job name or CRM URL">
+      </div>
+      <button type="button" id="crmFetchBtn" class="btn btn-secondary">Search CRM</button>
+    </div>
+    <div id="crmDeals"></div>
+    <div id="crmFilesSection" class="crm-files-section hidden">
+      <div class="form-field">
+        <label for="roofMeasurementFile">Roof Measurement File</label>
+        <select id="roofMeasurementFile">
+          <option value="">Select a file...</option>
+        </select>
+      </div>
+      <button type="button" id="extractMeasurementsBtn" class="btn btn-secondary" disabled>Extract Measurements from PDF</button>
+    </div>
+    <div class="crm-files-section">
+      <div class="form-field">
+        <label for="uploadPdf">Or upload a HOVER PDF from your computer</label>
+        <input type="file" id="uploadPdf" accept=".pdf,application/pdf">
+      </div>
+      <button type="button" id="extractUploadBtn" class="btn btn-secondary" disabled>Extract Measurements from Uploaded PDF</button>
+    </div>
+    <p id="extractStatus" class="extract-status"></p>
+  </div>
+  
   <div class="form-grid">
     <div class="field full">
       <label for="projectName">Project Name</label>
@@ -66,6 +96,7 @@
 
   <div class="button-row">
     <button type="button" id="roofPlanBtn" class="btn btn-secondary" disabled aria-expanded="false">IWS Diagram</button>
+    <button type="button" id="savePdfBtn" class="btn btn-secondary" disabled>Save as PDF</button>
     <button type="button" id="clearBtn" class="btn btn-secondary">Clear Form</button>
     <button type="button" id="calculateBtn" class="btn btn-primary">Calculate</button>
   </div>
@@ -133,4 +164,249 @@
 
 {% block extra_scripts %}
   <script src="{{ url_for('iws.static', filename='js/calculator.js') }}"></script>
+  <script>
+    const IWS = {
+      crmSearch: "{{ url_for('iws.crm_search_route') }}",
+      crmFetch: "{{ url_for('iws.crm_fetch_route') }}",
+      crmFiles: "{{ url_for('iws.crm_files_route') }}",
+      extractMeasurements: "{{ url_for('iws.extract_measurements') }}",
+      extractUpload: "{{ url_for('iws.extract_upload') }}"
+    };
+
+    let currentDealId = null;
+
+    function extractDealId(input) {
+      const m = input.match(/[?&]id=(\d+)/i) || input.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(input.trim()) ? [null, input.trim()] : null);
+      return m ? m[1] : null;
+    }
+
+    function crmSearch() {
+      const query = document.getElementById("crmQuery").value.trim();
+      if (!query) {
+        document.getElementById("crmDeals").innerHTML = "";
+        return;
+      }
+      const dealId = extractDealId(query);
+      if (dealId) {
+        return crmLoadInfo(dealId);
+      }
+      fetch(IWS.crmSearch, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) renderDeals(d.deals);
+          else alert("Error: " + (d.error || "Unknown error"));
+        })
+        .catch(e => alert("Fetch error: " + e.message));
+    }
+
+    function renderDeals(deals) {
+      if (!deals || !Array.isArray(deals) || !deals.length) {
+        document.getElementById("crmDeals").innerHTML = "<p>No deals found.</p>";
+        return;
+      }
+      const html = deals
+        .map(d => `
+          <button type="button" class="deal-btn" data-deal-id="${d.id}">
+            <strong>${d.title || d.name || ""}</strong><br>
+            <small>${d.stage || ""}</small>
+          </button>
+        `)
+        .join("");
+      document.getElementById("crmDeals").innerHTML = html;
+      document.querySelectorAll(".deal-btn").forEach(btn => {
+        btn.addEventListener("click", () => crmLoadInfo(btn.dataset.dealId));
+      });
+    }
+
+    function crmLoadInfo(dealId) {
+      currentDealId = dealId;
+      fetch(IWS.crmFetch, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: dealId })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok && d.info) {
+            const info = d.info;
+            if (info.customer_name) document.getElementById("projectName").value = info.customer_name;
+            const street = info.street || info.job_location || "";
+            const cityStateZip = info.city_state_zip || "";
+            const fullAddress = cityStateZip ? street + ", " + cityStateZip : street;
+            if (fullAddress) document.getElementById("projectAddress").value = fullAddress;
+          }
+        })
+        .catch(e => console.warn("CRM fetch error:", e.message));
+      crmLoadFiles(dealId);
+    }
+
+    function crmLoadFiles(dealId) {
+      fetch(IWS.crmFiles, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: dealId })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok && d.files) {
+            document.getElementById("crmQuery").value = "";
+            document.getElementById("crmDeals").innerHTML = "";
+            populateFileDropdown(d.files);
+            document.getElementById("crmFilesSection").classList.remove("hidden");
+          } else {
+            const errorMsg = d.error || "Failed to load files";
+            alert("Error: " + errorMsg);
+          }
+        })
+        .catch(e => alert("Fetch error: " + e.message));
+    }
+
+    function populateFileDropdown(files) {
+      const select = document.getElementById("roofMeasurementFile");
+      select.innerHTML = '<option value="">Select a file...</option>';
+      
+      if (!files || !Array.isArray(files) || files.length === 0) {
+        const option = document.createElement("option");
+        option.textContent = "No files available";
+        option.disabled = true;
+        select.appendChild(option);
+        return;
+      }
+
+      files.forEach(f => {
+        const option = document.createElement("option");
+        option.value = f.id;
+        option.textContent = f.title + (f.size ? ` (${f.size})` : "");
+        option.dataset.title = f.title;
+        select.appendChild(option);
+      });
+    }
+
+    function handleExtractResponse(d, statusEl) {
+      if (d.ok) {
+        autoPopulateFields(d);
+        statusEl.textContent = "Measurements extracted and form populated!";
+        statusEl.className = "extract-status success";
+      } else {
+        statusEl.textContent = "Error: " + (d.error || "Unknown error");
+        statusEl.className = "extract-status error";
+      }
+    }
+
+    function extractMeasurements() {
+      const fileId = document.getElementById("roofMeasurementFile").value;
+      if (!fileId) {
+        alert("Please select a file first");
+        return;
+      }
+
+      const statusEl = document.getElementById("extractStatus");
+      const btn = document.getElementById("extractMeasurementsBtn");
+      
+      statusEl.textContent = "Extracting measurements...";
+      statusEl.className = "extract-status";
+      btn.disabled = true;
+
+      fetch(IWS.extractMeasurements, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_id: fileId })
+      })
+        .then(r => r.json())
+        .then(d => handleExtractResponse(d, statusEl))
+        .catch(e => {
+          statusEl.textContent = "Fetch error: " + e.message;
+          statusEl.className = "extract-status error";
+        })
+        .finally(() => {
+          btn.disabled = !document.getElementById("roofMeasurementFile").value;
+        });
+    }
+
+    function extractUpload() {
+      const input = document.getElementById("uploadPdf");
+      if (!input.files || !input.files.length) {
+        alert("Please choose a PDF file first");
+        return;
+      }
+
+      const statusEl = document.getElementById("extractStatus");
+      const btn = document.getElementById("extractUploadBtn");
+
+      statusEl.textContent = "Extracting measurements from uploaded PDF...";
+      statusEl.className = "extract-status";
+      btn.disabled = true;
+
+      const fd = new FormData();
+      fd.append("pdf", input.files[0]);
+
+      fetch(IWS.extractUpload, { method: "POST", body: fd })
+        .then(r => r.json())
+        .then(d => handleExtractResponse(d, statusEl))
+        .catch(e => {
+          statusEl.textContent = "Fetch error: " + e.message;
+          statusEl.className = "extract-status error";
+        })
+        .finally(() => {
+          btn.disabled = !(input.files && input.files.length);
+        });
+    }
+
+    function autoPopulateFields(measurements) {
+      if (measurements.roofSizeSq !== null && measurements.roofSizeSq !== undefined) {
+        document.getElementById("roofSize").value = measurements.roofSizeSq;
+      }
+      if (measurements.roofPitch !== null && measurements.roofPitch !== undefined) {
+        document.getElementById("roofPitch").value = measurements.roofPitch;
+      }
+      if (measurements.eaveLength !== null && measurements.eaveLength !== undefined) {
+        document.getElementById("eaveLength").value = measurements.eaveLength;
+      }
+      if (measurements.valleyLength !== null && measurements.valleyLength !== undefined) {
+        document.getElementById("valleyLength").value = measurements.valleyLength;
+      }
+      if (measurements.soffitDepth !== null && measurements.soffitDepth !== undefined) {
+        document.getElementById("soffitDepth").value = measurements.soffitDepth;
+      }
+      if (measurements.insideWall !== null && measurements.insideWall !== undefined) {
+        document.getElementById("insideWall").value = measurements.insideWall;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const crmBtn = document.getElementById("crmFetchBtn");
+      const crmQuery = document.getElementById("crmQuery");
+      const extractBtn = document.getElementById("extractMeasurementsBtn");
+      const fileSelect = document.getElementById("roofMeasurementFile");
+      const uploadInput = document.getElementById("uploadPdf");
+      const uploadBtn = document.getElementById("extractUploadBtn");
+
+      if (crmBtn) crmBtn.addEventListener("click", crmSearch);
+      if (crmQuery) {
+        crmQuery.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") crmSearch();
+        });
+      }
+      if (extractBtn) extractBtn.addEventListener("click", extractMeasurements);
+      if (uploadBtn) uploadBtn.addEventListener("click", extractUpload);
+      if (uploadInput) {
+        uploadInput.addEventListener("change", () => {
+          uploadBtn.disabled = !(uploadInput.files && uploadInput.files.length);
+          document.getElementById("extractStatus").textContent = "";
+          document.getElementById("extractStatus").className = "extract-status";
+        });
+      }
+      if (fileSelect) {
+        fileSelect.addEventListener("change", () => {
+          document.getElementById("extractMeasurementsBtn").disabled = !fileSelect.value;
+          document.getElementById("extractStatus").textContent = "";
+          document.getElementById("extractStatus").className = "extract-status";
+        });
+      }
+    });
+  </script>
 {% endblock %}

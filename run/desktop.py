@@ -74,6 +74,8 @@ class ToolboxApi:
         """Show a native Save As dialog for a file in the upload directory.
 
         Returns a dict: {'ok': True, 'path': '...'} or {'ok': False, 'error': '...'}.
+        Files are copied but not deleted from the upload directory since they may
+        still be in use by reconciliation or other background processes.
         """
         from gi.repository import Gtk
         from toolbox.config import Config
@@ -101,10 +103,6 @@ class ToolboxApi:
             if response == Gtk.ResponseType.OK:
                 dest = Path(dialog.get_filename())
                 shutil.copy2(str(src), str(dest))
-                try:
-                    src.unlink()
-                except OSError:
-                    pass
                 return {"ok": True, "path": str(dest)}
             return {"ok": False, "error": "Save cancelled."}
         finally:

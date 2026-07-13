@@ -56,9 +56,27 @@
       </div>
     </div>
   </div>
+  <div id="toast-container" class="toast-container"></div>
   <script src="{{ url_for('static', filename='js/company_theme.js') }}"></script>
   <script src="{{ url_for('static', filename='js/folder_links.js') }}"></script>
   <script src="{{ url_for('static', filename='js/crm_credentials.js') }}"></script>
+  <script>
+    function showToast(message, type) {
+      type = type || 'info';
+      console.log('[toast]', type, message);
+      var container = document.getElementById('toast-container');
+      if (!container) return;
+      var toast = document.createElement('div');
+      toast.className = 'toast toast-' + type;
+      toast.textContent = message;
+      container.appendChild(toast);
+      requestAnimationFrame(function() { toast.classList.add('toast-show'); });
+      setTimeout(function() {
+        toast.classList.remove('toast-show');
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 4000);
+    }
+  </script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

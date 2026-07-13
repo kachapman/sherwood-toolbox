@@ -13,6 +13,142 @@
   padding-bottom: 8px;
 }
 
+.crm-panel {
+  border-left: 4px solid var(--green-500);
+  margin-bottom: 18px;
+  padding: 14px;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green-500);
+}
+
+.crm-panel h3 {
+  margin: 0 0 12px;
+  color: var(--green-900);
+  font-size: 1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.form-field {
+  flex: 1;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--green-900);
+}
+
+.form-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: var(--green-800);
+  box-shadow: 0 0 0 3px rgba(74, 154, 79, 0.1);
+}
+
+#crmDeals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.crm-files-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.crm-files-section select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 0.88rem;
+  background: #fff;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.crm-files-section select:focus {
+  outline: none;
+  border-color: var(--green-800);
+  box-shadow: 0 0 0 3px rgba(74, 154, 79, 0.1);
+}
+
+.extract-status {
+  margin-top: 8px;
+  font-size: 0.87rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  min-height: 0;
+}
+
+.extract-status:empty {
+  display: none;
+}
+
+.extract-status.success {
+  background: var(--sage-50);
+  color: var(--green-800);
+  border-left: 3px solid var(--green-500);
+}
+
+.extract-status.error {
+  background: #fff0f0;
+  color: #c0392b;
+  border-left: 3px solid #e74c3c;
+}
+
+.deal-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  transition: all 0.2s ease;
+}
+
+.deal-btn:hover {
+  background: var(--sage-50);
+  border-color: var(--green-500);
+}
+
+.deal-btn strong {
+  font-weight: 600;
+  color: var(--green-900);
+  font-size: 0.9rem;
+}
+
+.deal-btn small {
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+
 /* Diagram panel */
 .roof-plan-panel {
   margin-top: 18px;

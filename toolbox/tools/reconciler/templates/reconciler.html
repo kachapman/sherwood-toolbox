@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}Estimate Reconciler - Sherwood Toolbox{% endblock %}
+{% block page_title %}Estimate Reconciler{% endblock %}
+{% block page_subtitle %}Mark up a carrier estimate against a contractor supplement{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('reconciler.static', filename='css/reconciler.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="rec-flow">
+
+  <div class="panel rec-crm-panel">
+    <p class="panel-label">Fetch from CRM <span class="rec-optional">optional</span></p>
+    <p class="muted-note">Type a job name or paste a CRM deal URL to pull the job's documents, then assign which is which below. Estimates are marked with a star and listed first. You can also just upload files directly.</p>
+    <div class="rec-crm-row">
+      <input type="text" id="crmQuery" placeholder="Job name (e.g. VanWinkle) or CRM deal URL" autocomplete="off">
+      <button type="button" class="btn btn-secondary" id="crmFind">Find</button>
+    </div>
+    <div id="crmDeals" class="rec-crm-deals"></div>
+    <p id="crmStatus" class="rec-crm-status"></p>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">The three estimates</p>
+    <p class="muted-note">The original carrier estimate is optional; add it to measure how much of your supplement the carrier has approved. Each slot takes a fetched CRM document or a direct upload.</p>
+    <form id="recForm" enctype="multipart/form-data">
+      <div class="rec-slots">
+        <div class="rec-slot">
+          <label>Current carrier estimate</label>
+          <select class="rec-doc-select" id="sel_carrier" style="display:none;"></select>
+          <input type="file" id="carrierInput" accept=".pdf">
+        </div>
+        <div class="rec-slot">
+          <label>Contractor supplement</label>
+          <select class="rec-doc-select" id="sel_contractor" style="display:none;"></select>
+          <input type="file" id="contractorInput" accept=".pdf">
+        </div>
+        <div class="rec-slot">
+          <label>Original carrier estimate <span class="rec-optional">optional</span></label>
+          <select class="rec-doc-select" id="sel_og" style="display:none;"></select>
+          <input type="file" id="ogInput" accept=".pdf">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="runBtn">Mark up carrier estimate</button>
+    </form>
+  </div>
+
+  <div id="loading" class="loading" style="display:none;">
+    <div class="spinner-border" role="status"></div>
+    <p id="loadingText">Reading PDFs, reconciling, and marking up the carrier estimate...</p>
+  </div>
+
+  <div id="errorPanel" class="panel" style="display:none;">
+    <p class="panel-label">Could not process the estimates</p>
+    <div class="rec-alert rec-alert-warn" id="errorText"></div>
+    <div class="rec-post-crm" id="errorPostWrap" style="display:none;">
+      <p class="muted-note">Post this error to the CRM job as a note.</p>
+      <button type="button" class="btn btn-secondary" id="postErrCrm" style="display:none;">Post error to CRM job</button>
+      <div class="rec-crm-row" id="postErrDealRow" style="display:none;">
+        <input type="text" id="postErrDealInput" placeholder="Paste CRM deal URL or id to post the error to" autocomplete="off">
+        <button type="button" class="btn btn-secondary" id="postErrDealBtn">Post error to CRM</button>
+      </div>
+      <p class="rec-crm-status" id="errPostStatus"></p>
+    </div>
+  </div>
+
+  <div id="results" style="display:none;">
+
+    <div class="panel rec-narrative" id="narrativePanel" style="display:none;"></div>
+
+    <div class="panel rec-summary">
+      <div class="rec-headline">
+        <span class="rec-recoverable-label" id="headLabel">Estimated recoverable</span>
+        <span class="rec-recoverable" id="headValue">$0.00</span>
+      </div>
+      <div class="rec-totals">
+        <div><span class="rec-t-label" id="t1Label"></span><span class="rec-t-val" id="t1Val"></span><span class="rec-t-sub" id="t1Sub"></span></div>
+        <div><span class="rec-t-label" id="t2Label"></span><span class="rec-t-val" id="t2Val"></span><span class="rec-t-sub" id="t2Sub"></span></div>
+        <div><span class="rec-t-label" id="t3Label"></span><span class="rec-t-val" id="t3Val"></span><span class="rec-t-sub" id="t3Sub"></span></div>
+      </div>
+      <div class="rec-totals rec-totals-2" id="totalsRow2" style="display:none;">
+        <div><span class="rec-t-label" id="t4Label"></span><span class="rec-t-val" id="t4Val"></span><span class="rec-t-sub" id="t4Sub"></span></div>
+        <div><span class="rec-t-label" id="t5Label"></span><span class="rec-t-val" id="t5Val"></span><span class="rec-t-sub" id="t5Sub"></span></div>
+        <div><span class="rec-t-label" id="t6Label"></span><span class="rec-t-val" id="t6Val"></span><span class="rec-t-sub" id="t6Sub"></span></div>
+      </div>
+    </div>
+
+    <div id="alerts"></div>
+
+    <div class="panel rec-markup">
+      <p class="panel-label">Marked-up carrier estimate</p>
+      <p class="muted-note" id="markupNote">The difference is painted onto the carrier PDF. Open the summary page first.</p>
+      <div class="rec-legend-note" id="legendNote" style="display:none;"></div>
+      <div class="rec-markup-stats">
+        <div class="rec-stat"><span class="rec-stat-num" id="stA">0</span><span class="rec-stat-lbl" id="stALbl"></span><span class="rec-stat-sub" id="stASub"></span></div>
+        <div class="rec-stat"><span class="rec-stat-num" id="stB">0</span><span class="rec-stat-lbl" id="stBLbl"></span><span class="rec-stat-sub" id="stBSub"></span></div>
+        <div class="rec-stat"><span class="rec-stat-num" id="stC">0</span><span class="rec-stat-lbl" id="stCLbl"></span><span class="rec-stat-sub" id="stCSub"></span></div>
+      </div>
+      <button class="btn btn-primary" id="dlMarkup">Download marked-up carrier estimate (PDF)</button>
+      <div id="markupPreviewWrap" style="display:none; margin-top:16px;">
+        <p class="panel-label">Marked-up estimate preview</p>
+        <p class="muted-note">The finished document with scope flags, quantity gaps, and the summary page. Links are not clickable in this viewer; use the download button for the interactive copy.</p>
+        <iframe id="markupPreviewFrame" title="Marked-up carrier estimate preview" style="width:100%;height:680px;border:1px solid var(--line);border-radius:4px;background:var(--sage-50);display:block;"></iframe>
+      </div>
+      <div class="rec-post-crm">
+        <button type="button" class="btn btn-secondary" id="postCrm" style="display:none;">Post marked-up estimate to CRM job</button>
+        <div class="rec-crm-row" id="postDealRow" style="display:none;">
+          <input type="text" id="postDealInput" placeholder="Paste CRM deal URL or id to attach" autocomplete="off">
+          <button type="button" class="btn btn-secondary" id="postDealBtn">Post to CRM</button>
+        </div>
+        <p class="rec-crm-status" id="postStatus"></p>
+      </div>
+      <p class="rec-log-note" id="logNote"></p>
+    </div>
+
+  </div>
+</div>
+
+<p class="note">Uploaded and fetched estimates are read locally and deleted once the markup is built. The line-by-line breakdown is written to a log; the marked-up PDF is kept briefly so it can be downloaded and posted back to the CRM job, then swept. Figures are an aid to review, not a guarantee of coverage. Sherwood Estimates &copy; 2026.</p>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const REC_URLS = { run: "{{ url_for('reconciler.run') }}", preview: "{{ url_for('reconciler.preview_file', name='__N__') }}" };
+  const CRM = { search: "{{ url_for('reconciler.crm_search') }}", files: "{{ url_for('reconciler.crm_files') }}", upload: "{{ url_for('reconciler.crm_upload') }}", errorNote: "{{ url_for('reconciler.crm_error_note') }}" };
+  let currentDeal = null;   // {id, title} once a CRM deal is searched or pasted
+  let markupName = null;    // filename of the latest markup, for posting to the CRM
+  let markupNote = null;    // server-built CRM note (HTML) with the bot-math summary
+  let lastErrorMessage = null;  // last run error text, for posting to the CRM job
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function money(x) {
+    const v = Number(x || 0);
+    const s = Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    return (v < 0 ? '-$' : '$') + s;
+  }
+  function signedMoney(x) {
+    const v = Number(x || 0);
+    return (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  function count(x) { return Number(x || 0).toLocaleString('en-US', {maximumFractionDigits: 0}); }
+  function tile(n, label, val, sub) { $('t'+n+'Label').textContent = label; $('t'+n+'Val').textContent = val; $('t'+n+'Sub').textContent = sub || ''; }
+  function stat(slot, num, label, sub) { $('st'+slot).textContent = num; $('st'+slot+'Lbl').textContent = label; $('st'+slot+'Sub').textContent = sub || ''; }
+
+  // === CRM fetch ===
+  const SLOTS = ['carrier', 'contractor', 'og'];
+  function extractDealId(s) {
+    const m = s.match(/[?&]id=(\d+)/i) || s.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(s.trim()) ? [null, s.trim()] : null);
+    return m ? m[1] : null;
+  }
+  async function crmFind() {
+    const q = $('crmQuery').value.trim();
+    if (!q) { $('crmStatus').textContent = 'Type a job name or paste a CRM deal URL.'; return; }
+    $('crmDeals').innerHTML = '';
+    const id = extractDealId(q);
+    if (id) { return crmLoadFiles(id, ''); }
+    $('crmStatus').textContent = 'Searching deals...';
+    try {
+      const fd = new FormData(); fd.append('query', q);
+      const d = await (await fetch(CRM.search, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmStatus').textContent = d.error; return; }
+      renderDeals(d.deals);
+    } catch (e) { $('crmStatus').textContent = 'CRM search failed: ' + e.message; }
+  }
+  function renderDeals(deals) {
+    const box = $('crmDeals'); box.innerHTML = '';
+    if (!deals.length) { $('crmStatus').textContent = 'No open deals match that name.'; return; }
+    $('crmStatus').textContent = 'Pick a deal:';
+    deals.forEach(dl => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'rec-deal';
+      b.innerHTML = '<span class="rec-deal-title">' + esc(dl.title) + '</span>' +
+                    (dl.stage ? '<span class="rec-deal-stage">' + esc(dl.stage) + '</span>' : '');
+      b.onclick = () => crmLoadFiles(dl.id, dl.title);
+      box.appendChild(b);
+    });
+  }
+  async function crmLoadFiles(id, label) {
+    currentDeal = { id: String(id), title: label || '' };
+    $('crmDeals').innerHTML = '';
+    $('crmStatus').textContent = 'Loading the job’s documents...';
+    try {
+      const fd = new FormData(); fd.append('deal_id', String(id));
+      const d = await (await fetch(CRM.files, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmStatus').textContent = d.error; return; }
+      if (!d.files.length) { $('crmStatus').textContent = 'This deal has no PDF documents.'; return; }
+      const estimates = d.files.filter(f => f.is_estimate);
+      const others = d.files.filter(f => !f.is_estimate);
+      function addGroup(sel, label, arr) {
+        if (!arr.length) return;
+        const og = document.createElement('optgroup');
+        og.label = '---- ' + label + ' ----';
+        arr.forEach(f => {
+          const o = document.createElement('option');
+          o.value = f.id; o.dataset.name = f.title;
+          const meta = [f.size, f.updated].filter(Boolean).join('  ·  ');
+          o.textContent = f.title + (meta ? '   ·   ' + meta : '');
+          og.appendChild(o);
+        });
+        sel.appendChild(og);
+      }
+      SLOTS.forEach(slot => {
+        const sel = $('sel_' + slot);
+        sel.innerHTML = '<option value="">Choose a document...</option>';
+        addGroup(sel, 'Estimates', estimates);
+        addGroup(sel, 'Other documents', others);
+        sel.value = d.guess[slot] ? String(d.guess[slot]) : '' ;
+        sel.style.display = '';
+        $(slot === 'carrier' ? 'carrierInput' : slot === 'contractor' ? 'contractorInput' : 'ogInput').value = '';
+      });
+      $('crmStatus').textContent = (label ? label + ': ' : '') + d.files.length +
+        ' documents. The three slots below are pre-filled; adjust any that are wrong.';
+    } catch (e) { $('crmStatus').textContent = 'Could not load documents: ' + e.message; }
+  }
+
+  // === results rendering ===
+  function alertBox(kind, text) { const d = document.createElement('div'); d.className = 'rec-alert rec-alert-' + kind; d.textContent = text; return d; }
+  function buildAlerts(data) {
+    const box = $('alerts'); box.innerHTML = '';
+    if (data.swap_hint) box.appendChild(alertBox('warn', data.swap_hint));
+    (data.notes || []).forEach(n => box.appendChild(alertBox('info', n)));
+  }
+  function renderNarrative(data) {
+    const box = $('narrativePanel'); box.innerHTML = '';
+    const items = data.narrative || [];
+    if (!items.length) { box.style.display = 'none'; return; }
+    items.forEach(s => { const p = document.createElement('p'); p.className = 'rec-narr' + (s.tone === 'caution' ? ' rec-narr-caution' : ''); p.textContent = s.text; box.appendChild(p); });
+    box.style.display = '';
+  }
+  function renderEffectiveness(data) {
+    const e = data.effectiveness, c = data.counts || {};
+    $('headLabel').textContent = 'Approval ratio';
+    $('headValue').textContent = Math.round((e.rate || 0) * 100) + '%';
+    tile(1, 'Approved to date', signedMoney(e.approved), 'original to current');
+    tile(2, 'Still unapproved', money(e.outstanding), 'asked, not yet approved');
+    tile(3, 'Contractor over original', money(e.ask), '');
+    tile(4, 'Original carrier RCV', money(e.og_grand), '');
+    tile(5, 'Current carrier RCV', money(e.carrier_grand), '');
+    tile(6, 'Contractor RCV', money(e.contractor_grand), '');
+    $('totalsRow2').style.display = '';
+    $('markupNote').textContent = 'Approved items are marked in green on the carrier pages with the dollar increase over the original in the left margin; unapproved scope is painted in blue by section. Open the summary page first.';
+    $('legendNote').style.display = '';
+    $('legendNote').innerHTML = [
+      '<div class="rec-legend-line rec-legend-title"><strong>Legend</strong></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-approved"></span><span>Approved to date. Carrier lines added or raised since the original estimate.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-outstanding"></span><span>Still unapproved. Contractor-scope lines the carrier has not added.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-high"></span><span>Shared-line shortfall over $500.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-mid"></span><span>Shared-line shortfall from $150 to $500.</span></div>',
+      '<div class="rec-legend-row"><span class="rec-legend-swatch rec-legend-short-low"></span><span>Shared-line shortfall under $150.</span></div>',
+      '<div class="rec-legend-line">Approved-to-date is the grand-total carrier increase. Shared-line shortfalls are separate item-by-item gaps.</div>',
+      '<div class="rec-legend-line">Effectiveness is measured from grand totals to the cent; the per-item lists use line matching and may not sum to those totals exactly.</div>',
+      '<div class="rec-legend-line">An aid to review, not a guarantee of coverage. Figures are read from the PDFs as printed. Sherwood Estimates (c) 2026.</div>'
+    ].join('');
+    stat('A', count(c.missing), 'unapproved items', money(c.missing_dollars) + ', ' + count(c.missing_painted) + ' painted in place');
+    stat('B', count(e.won_tagged), 'approved items tagged', 'increase shown in green');
+    stat('C', count(c.flagged), 'quantity gaps flagged', c.flagged ? count(c.located) + ' highlighted' : 'none under-measured');
+  }
+  function renderRecoverable(data) {
+    const c = data.counts || {};
+    $('headLabel').textContent = 'Estimated recoverable';
+    $('headValue').textContent = money(data.est_recoverable);
+    tile(1, 'Carrier RCV', money(data.carrier.grand_rcv), data.carrier.name);
+    tile(2, 'Contractor RCV', money(data.contractor.grand_rcv), data.contractor.name);
+    tile(3, 'Total RCV gap', money(data.gap), 'contractor minus carrier');
+    $('totalsRow2').style.display = 'none';
+    $('markupNote').textContent = 'Missing scope is painted in salmon by section; under-measured lines are highlighted in place. Open the summary page first.';
+    $('legendNote').style.display = 'none';
+    $('legendNote').innerHTML = '';
+    stat('A', count(c.missing), 'missing line items', c.missing_dollars ? money(c.missing_dollars) + ' in scope, ' + count(c.missing_painted) + ' painted' : '');
+    stat('B', count(c.flagged), 'quantity gaps flagged', c.flagged ? count(c.located) + ' of ' + count(c.flagged) + ' highlighted' : 'none under-measured');
+    stat('C', count(c.added_pages), 'summary pages added', '');
+  }
+
+  function wireDownload(btn, url) {
+    const name = decodeURIComponent(url.split('/').pop());
+    btn.onclick = async function () {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+        btn.disabled = true; const label = btn.textContent; btn.textContent = 'Saving...';
+        try { const res = await window.pywebview.api.save_file(name); if (!res.ok && res.error !== 'Save cancelled.') alert(res.error || 'Could not save file.'); }
+        catch (err) { alert('Save failed: ' + err.message); }
+        finally { btn.disabled = false; btn.textContent = label; }
+      } else { window.location.href = url; }
+    };
+  }
+
+  // === post the markup back to the CRM job ===
+  // Show the direct button when a deal is already known (searched/pasted), else
+  // the paste-a-deal-URL row. Called after each successful run.
+  function preparePostUi(url) {
+    markupName = decodeURIComponent(url.split('/').pop());
+    const b = $('postCrm');
+    b.disabled = false; b.textContent = 'Post marked-up estimate to CRM job';
+    $('postStatus').textContent = ''; $('postStatus').classList.remove('rec-ok');
+    $('postDealInput').value = '';
+    const known = currentDeal && currentDeal.id;
+    b.style.display = known ? '' : 'none';
+    $('postDealRow').style.display = known ? 'none' : '';
+  }
+
+  async function postToCrm(dealId, name, btn) {
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+    $('postStatus').textContent = ''; $('postStatus').classList.remove('rec-ok');
+    try {
+      const fd = new FormData();
+      fd.append('deal_id', String(dealId));
+      fd.append('name', name);
+      if (markupNote) fd.append('note', markupNote);
+      const d = await (await fetch(CRM.upload, { method: 'POST', body: fd })).json();
+      if (d.ok) {
+        const pb = $('postCrm');
+        pb.style.display = ''; pb.disabled = true; pb.textContent = 'Attached to CRM job ✓';
+        $('postDealRow').style.display = 'none';
+        // markupNote is HTML built by the server (bot-math line bold + underlined).
+        $('postStatus').innerHTML = markupNote ||
+          "Reconciliation bot finished it's terrible purpose:<br><br>the marked up Carrier Estimate is Attached to the file.";
+        $('postStatus').classList.add('rec-ok');
+      } else {
+        $('postStatus').textContent = d.error || 'Could not post to the CRM.';
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+      }
+    } catch (e) {
+      $('postStatus').textContent = 'Post failed: ' + e.message;
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  // === run errors + posting the error to the CRM job ===
+  // A "file not readable" style error (crm_postable) offers a one-click note on the
+  // CRM job: the exact error text, signed server-side. The button shows when a deal
+  // is already known; otherwise a paste-a-deal row, mirroring the markup post UI.
+  function showError(data) {
+    const msg = data.error || 'Something went wrong.';
+    lastErrorMessage = msg;
+    $('errorText').textContent = msg;
+    const wrap = $('errorPostWrap');
+    if (data.crm_postable) {
+      wrap.style.display = '';
+      $('errPostStatus').textContent = ''; $('errPostStatus').classList.remove('rec-ok');
+      const known = currentDeal && currentDeal.id;
+      const b = $('postErrCrm');
+      b.style.display = known ? '' : 'none';
+      b.disabled = false; b.textContent = 'Post error to CRM job';
+      $('postErrDealRow').style.display = known ? 'none' : '';
+      $('postErrDealInput').value = '';
+    } else {
+      wrap.style.display = 'none';
+    }
+    $('errorPanel').style.display = 'block';
+  }
+
+  async function postErrorToCrm(dealId, message, btn) {
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+    $('errPostStatus').textContent = ''; $('errPostStatus').classList.remove('rec-ok');
+    try {
+      const fd = new FormData();
+      fd.append('deal_id', String(dealId));
+      fd.append('message', message);
+      const d = await (await fetch(CRM.errorNote, { method: 'POST', body: fd })).json();
+      if (d.ok) {
+        const b = $('postErrCrm');
+        b.style.display = ''; b.disabled = true; b.textContent = 'Error posted to CRM job ✓';
+        $('postErrDealRow').style.display = 'none';
+        // d.posted is the server-built note (line breaks as <br>); render it.
+        $('errPostStatus').innerHTML = d.posted || 'Posted to the CRM job.';
+        $('errPostStatus').classList.add('rec-ok');
+      } else {
+        $('errPostStatus').textContent = d.error || 'Could not post to the CRM.';
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+      }
+    } catch (e) {
+      $('errPostStatus').textContent = 'Post failed: ' + e.message;
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  // For a slot, append either the uploaded file or the chosen CRM document.
+  function appendSlot(fd, slot, fileInputId) {
+    const file = $(fileInputId).files[0];
+    if (file) { fd.append(slot, file); return true; }
+    const sel = $('sel_' + slot);
+    if (sel && sel.value) {
+      fd.append(slot + '_file_id', sel.value);
+      fd.append(slot + '_file_name', sel.options[sel.selectedIndex].dataset.name || '');
+      return true;
+    }
+    return false;
+  }
+
+  $('crmFind').addEventListener('click', crmFind);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmFind(); } });
+
+  $('postCrm').addEventListener('click', () => {
+    if (!currentDeal || !currentDeal.id || !markupName) return;
+    postToCrm(currentDeal.id, markupName, $('postCrm'));
+  });
+  $('postDealBtn').addEventListener('click', () => {
+    if (!markupName) { $('postStatus').textContent = 'Run a reconciliation first.'; return; }
+    const id = extractDealId($('postDealInput').value || '');
+    if (!id) { $('postStatus').textContent = 'Paste a CRM deal URL or a numeric deal id.'; return; }
+    postToCrm(id, markupName, $('postDealBtn'));
+  });
+  $('postDealInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('postDealBtn').click(); } });
+
+  $('postErrCrm').addEventListener('click', () => {
+    if (!currentDeal || !currentDeal.id || !lastErrorMessage) return;
+    postErrorToCrm(currentDeal.id, lastErrorMessage, $('postErrCrm'));
+  });
+  $('postErrDealBtn').addEventListener('click', () => {
+    if (!lastErrorMessage) { $('errPostStatus').textContent = 'Run a reconciliation first.'; return; }
+    const id = extractDealId($('postErrDealInput').value || '');
+    if (!id) { $('errPostStatus').textContent = 'Paste a CRM deal URL or a numeric deal id.'; return; }
+    postErrorToCrm(id, lastErrorMessage, $('postErrDealBtn'));
+  });
+  $('postErrDealInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('postErrDealBtn').click(); } });
+
+  $('recForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    const hasCarrier = appendSlot(fd, 'carrier', 'carrierInput');
+    const hasContractor = appendSlot(fd, 'contractor', 'contractorInput');
+    appendSlot(fd, 'og', 'ogInput');
+    if (!hasCarrier || !hasContractor) { alert('Provide a current carrier estimate and a contractor supplement. Upload a file or pick a CRM document for each.'); return; }
+
+    $('results').style.display = 'none';
+    $('errorPanel').style.display = 'none';
+    $('loading').style.display = 'block';
+    $('runBtn').disabled = true;
+    try {
+      const data = await (await fetch(REC_URLS.run, { method: 'POST', body: fd })).json();
+      if (data.error) { showError(data); return; }
+      renderNarrative(data);
+      if (data.mode === 'effectiveness' && data.effectiveness) renderEffectiveness(data);
+      else renderRecoverable(data);
+      $('logNote').textContent = data.log_path ? ('Full line-by-line breakdown logged to ' + data.log_path) : '';
+      buildAlerts(data);
+      wireDownload($('dlMarkup'), data.markup_download);
+      // Inline preview of the marked-up PDF
+      var markupFileName = decodeURIComponent(data.markup_download.split('/').pop());
+      var previewUrl = REC_URLS.preview.replace('__N__', encodeURIComponent(markupFileName));
+      console.log('[rec] preview wiring:', {markupFileName: markupFileName, previewUrl: previewUrl, downloadUrl: data.markup_download});
+      var previewFrame = $('markupPreviewFrame');
+      var previewWrap = $('markupPreviewWrap');
+      if (previewFrame) previewFrame.src = previewUrl;
+      if (previewWrap) previewWrap.style.display = 'block';
+      markupNote = data.crm_note || null;
+      preparePostUi(data.markup_download);
+      $('results').style.display = 'block';
+    } catch (err) { alert('Error: ' + err.message); }
+    finally { $('loading').style.display = 'none'; $('runBtn').disabled = false; }
+  });
+</script>
+{% endblock %}

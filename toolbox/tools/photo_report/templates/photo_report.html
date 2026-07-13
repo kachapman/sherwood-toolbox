@@ -2,19 +2,23 @@
 {% block title %}Photo Report - Sherwood Toolbox{% endblock %}
 {% block page_title %}Photo Report{% endblock %}
 {% block page_subtitle %}Build a branded photo report PDF{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('photo_report.static', filename='css/pr.css') }}">
+{% endblock %}
 
 {% block content %}
 <form id="prForm">
   <div class="panel company-theme-surface">
     <h2>Fetch from CRM (optional)</h2>
-    <p class="panel-hint">Paste a CRM job URL to auto-fill customer, claim, and location.</p>
+    <p class="panel-hint">Type a job name or paste a CRM job URL to auto-fill customer, claim, and location.</p>
     <div class="inline-row">
       <div class="field">
-        <label for="crmUrl">CRM job URL</label>
-        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+        <label for="crmQuery">Job name or CRM URL</label>
+        <input type="text" id="crmQuery" placeholder="Job name (e.g. VanWinkle) or CRM URL" autocomplete="off">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Find</button>
     </div>
+    <div id="crmDeals" style="margin-top:8px;"></div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
     {% include "_crm_credentials.html" %}
   </div>
@@ -58,7 +62,7 @@
 
   <div class="panel company-theme-surface">
     <h2>Photos</h2>
-    <p class="panel-hint">Select the job photos to include. Images are resized and compressed to fit the size limit.</p>
+    <p class="panel-hint">Select the job photos to include. Drag to reorder. Add optional captions below each photo.</p>
     <div class="form-grid">
       <div class="field full">
         <label for="photos">Photo files</label>
@@ -70,6 +74,7 @@
         <div class="with-unit"><input type="number" id="max_size_mb" name="max_size_mb" value="10" step="0.5" min="0.5"><span class="unit">MB</span></div>
       </div>
     </div>
+    <div id="photoGrid" class="pr-photo-grid"></div>
     <div class="button-row">
       <button type="submit" class="btn btn-primary company-tinted" id="genBtn">Generate Report PDF</button>
       <span class="muted-note" id="genMsg"></span>
@@ -82,53 +87,214 @@
 <script>
   const PR = {
     crm: "{{ url_for('photo_report.crm_fetch') }}",
+    crmSearch: "{{ url_for('photo_report.crm_search_route') }}",
+    crmFiles: "{{ url_for('photo_report.crm_files_route') }}",
     generate: "{{ url_for('photo_report.generate') }}",
+    download: "{{ url_for('photo_report.download_file', name='__N__') }}",
   };
+  function prDlUrl(name) { return PR.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-  $('photos').addEventListener('change', e => {
-    const n = e.target.files.length;
-    $('photoCount').textContent = n ? `${n} photo${n === 1 ? '' : 's'} selected.` : 'No photos selected.';
-  });
+  function extractDealId(s) {
+    const m = s.match(/[?&]id=(\d+)/i) || s.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(s.trim()) ? [null, s.trim()] : null);
+    return m ? m[1] : null;
+  }
 
-  const crmBtn = $('crmFetchBtn');
-  if (crmBtn) crmBtn.addEventListener('click', async () => {
-    const msg = $('crmMsg');
-    msg.textContent = 'Looking up...';
-    const fd = new FormData();
-    fd.append('url', $('crmUrl').value);
+  async function crmSearch() {
+    const q = $('crmQuery').value.trim();
+    if (!q) { $('crmMsg').textContent = 'Type a job name or paste a CRM job URL.'; return; }
+    $('crmDeals').innerHTML = '';
+    const id = extractDealId(q);
+    if (id) { return crmLoadInfo(id, ''); }
+    $('crmMsg').textContent = 'Searching deals...';
     try {
+      const fd = new FormData(); fd.append('query', q);
+      const d = await (await fetch(PR.crmSearch, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      renderDeals(d.deals);
+    } catch (e) { $('crmMsg').textContent = 'Search failed: ' + e.message; }
+  }
+
+  function renderDeals(deals) {
+    const box = $('crmDeals'); box.innerHTML = '';
+    if (!deals.length) { $('crmMsg').textContent = 'No open deals match that name.'; return; }
+    $('crmMsg').textContent = 'Pick a deal:';
+    deals.forEach(dl => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-secondary'; b.style.display = 'block'; b.style.marginTop = '6px'; b.style.width = '100%'; b.style.textAlign = 'left';
+      b.innerHTML = '<strong>' + esc(dl.title) + '</strong>' + (dl.stage ? '<br><small>' + esc(dl.stage) + '</small>' : '');
+      b.onclick = () => crmLoadInfo(dl.id, dl.title);
+      box.appendChild(b);
+    });
+  }
+
+  async function crmLoadInfo(id, label) {
+     $('crmDeals').innerHTML = '';
+     $('crmMsg').textContent = 'Loading job information...';
+     try {
+       const fd = new FormData(); fd.append('url', 'https://office.publicadjustermidwest.com/Products/CRM/Deals.aspx?id=' + id);
       const r = await fetch(PR.crm, { method: 'POST', body: fd });
       const data = await r.json();
-      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
-      const info = data.info || {};
-      const map = { customer_name: 'customer_name', claim_number: 'claim_number',
-                    job_location: 'job_location', job_id: 'job_id' };
-      Object.keys(map).forEach(k => { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
-      msg.textContent = 'Fields filled from CRM.';
-    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
+      if (data.ok) {
+        const info = data.info || {};
+        const map = { customer_name: 'customer_name', claim_number: 'claim_number',
+                      job_location: 'job_location', job_id: 'job_id' };
+        Object.keys(map).forEach(function(k) { if (info[k] && $(map[k])) $(map[k]).value = info[k]; });
+        $('crmMsg').textContent = 'Fields filled from CRM.';
+      } else {
+        $('crmMsg').textContent = data.error || 'Could not fetch job details.';
+      }
+    } catch (e) { $('crmMsg').textContent = 'Could not load information: ' + e.message; }
+  }
+
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
+
+  // Photo management: reorderable grid with captions
+  let photoFiles = [];      // File objects in current order
+  let photoOrder = [];      // indices into photoFiles
+  let photoCaptions = {};   // index -> caption string
+  let dragIdx = null;
+
+  function renderPhotoGrid() {
+    const grid = $('photoGrid');
+    grid.innerHTML = '';
+    if (!photoOrder.length) { grid.style.display = 'none'; return; }
+    grid.style.display = '';
+    photoOrder.forEach(function(idx, pos) {
+      const file = photoFiles[idx];
+      if (!file) return;
+      const card = document.createElement('div');
+      card.className = 'pr-photo-card';
+      card.draggable = true;
+      card.dataset.pos = pos;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'pr-photo-thumb';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      thumb.appendChild(img);
+
+      const info = document.createElement('div');
+      info.className = 'pr-photo-info';
+      const name = document.createElement('div');
+      name.className = 'pr-photo-name';
+      name.textContent = file.name;
+      name.title = file.name;
+      const capInput = document.createElement('input');
+      capInput.type = 'text';
+      capInput.className = 'pr-photo-caption';
+      capInput.placeholder = 'Optional caption';
+      capInput.value = photoCaptions[idx] || '';
+      capInput.addEventListener('input', function() { photoCaptions[idx] = this.value; });
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn btn-secondary pr-photo-remove';
+      removeBtn.textContent = '\u00d7';
+      removeBtn.title = 'Remove photo';
+      removeBtn.addEventListener('click', function() {
+        photoFiles[idx] = null;
+        photoOrder.splice(pos, 1);
+        delete photoCaptions[idx];
+        renderPhotoGrid();
+        updatePhotoCount();
+      });
+
+      info.appendChild(name);
+      info.appendChild(capInput);
+      info.appendChild(removeBtn);
+      card.appendChild(thumb);
+      card.appendChild(info);
+
+      // Drag events
+      card.addEventListener('dragstart', function(e) {
+        dragIdx = pos;
+        card.classList.add('pr-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', function() {
+        card.classList.remove('pr-dragging');
+        dragIdx = null;
+        grid.querySelectorAll('.pr-photo-card').forEach(function(c) { c.classList.remove('pr-drag-over'); });
+      });
+      card.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        card.classList.add('pr-drag-over');
+      });
+      card.addEventListener('dragleave', function() { card.classList.remove('pr-drag-over'); });
+      card.addEventListener('drop', function(e) {
+        e.preventDefault();
+        card.classList.remove('pr-drag-over');
+        if (dragIdx === null || dragIdx === pos) return;
+        const item = photoOrder.splice(dragIdx, 1)[0];
+        photoOrder.splice(pos, 0, item);
+        renderPhotoGrid();
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  function updatePhotoCount() {
+    const n = photoOrder.length;
+    $('photoCount').textContent = n ? n + ' photo' + (n === 1 ? '' : 's') + ' selected.' : 'No photos selected.';
+  }
+
+  $('photos').addEventListener('change', function(e) {
+    const newFiles = Array.from(e.target.files);
+    newFiles.forEach(function(f) {
+      const idx = photoFiles.length;
+      photoFiles.push(f);
+      photoOrder.push(idx);
+    });
+    e.target.value = '';
+    renderPhotoGrid();
+    updatePhotoCount();
   });
 
-  $('prForm').addEventListener('submit', async (e) => {
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
+
+  $('prForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const btn = $('genBtn'), msg = $('genMsg');
     btn.disabled = true; msg.textContent = 'Generating...';
     try {
-      const r = await fetch(PR.generate, { method: 'POST', body: new FormData($('prForm')) });
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/pdf')) {
-        const blob = await r.blob();
-        const cd = r.headers.get('content-disposition') || '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const name = m ? decodeURIComponent(m[1]) : 'photo_report.pdf';
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-        msg.textContent = 'Downloaded ' + name;
-      } else {
-        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
-        msg.textContent = data.error || 'Generation failed.';
+      const fd = new FormData($('prForm'));
+      // Remove the original photos entry and re-add in order
+      fd.delete('photos');
+      var captionsArr = [];
+      photoOrder.forEach(function(idx) {
+        if (photoFiles[idx]) {
+          fd.append('photos', photoFiles[idx]);
+          captionsArr.push(photoCaptions[idx] || '');
+        }
+      });
+      fd.append('photo_captions', JSON.stringify(captionsArr));
+      console.log('[pr] submit:', {photoCount: photoOrder.length, captions: captionsArr});
+      const r = await fetch(PR.generate, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (data.error) { msg.textContent = data.error; btn.disabled = false; return; }
+      if (data.ok && data.filename) {
+        // Desktop shell: native Save As dialog.  Browser: direct download link.
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+          msg.textContent = 'Saving...';
+          try {
+            const res = await window.pywebview.api.save_file(data.filename);
+            if (!res.ok && res.error !== 'Save cancelled.') {
+              msg.textContent = res.error || 'Could not save file.';
+            } else {
+              msg.textContent = 'Saved ' + data.filename;
+            }
+          } catch (err) { msg.textContent = 'Save failed: ' + err.message; }
+        } else {
+          window.location.href = prDlUrl(data.filename);
+          msg.textContent = 'Downloaded ' + data.filename;
+        }
       }
     } catch (e) { msg.textContent = 'Error: ' + e.message; }
     btn.disabled = false;

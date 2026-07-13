@@ -10,14 +10,15 @@
 
   <div class="panel company-theme-surface">
     <h2>Fetch from CRM (optional)</h2>
-    <p class="panel-hint">Paste a CRM job URL to auto-fill the customer and claim fields.</p>
+    <p class="panel-hint">Type a job name or paste a CRM job URL to auto-fill the customer and claim fields.</p>
     <div class="inline-row">
       <div class="field">
-        <label for="crmUrl">CRM job URL</label>
-        <input type="url" id="crmUrl" placeholder="https://office.publicadjustermidwest.com/...">
+        <label for="crmQuery">Job name or CRM URL</label>
+        <input type="text" id="crmQuery" placeholder="Job name (e.g. VanWinkle) or CRM URL" autocomplete="off">
       </div>
-      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Fetch</button>
+      <button type="button" class="btn btn-secondary" id="crmFetchBtn" {{ 'disabled' if caps.offline or not caps.crm_configured }}>Find</button>
     </div>
+    <div id="crmDeals" style="margin-top:8px;"></div>
     <p class="muted-note" id="crmMsg" style="margin-top:8px;"></p>
     {% include "_crm_credentials.html" %}
   </div>
@@ -90,9 +91,9 @@
     </div>
 
     <table class="lineitems" style="margin-top:16px">
-      <thead><tr><th>Description</th><th class="num">Amount</th><th></th></tr></thead>
+      <thead><tr><th style="width:32px;"></th><th>Description</th><th class="num">Amount</th><th style="width:32px;"></th></tr></thead>
       <tbody id="lineBody"></tbody>
-      <tfoot><tr><td>Grand total</td><td class="num" id="grandTotal">0.00</td><td></td></tr></tfoot>
+      <tfoot><tr><td></td><td>Grand total</td><td class="num" id="grandTotal">0.00</td><td></td></tr></tfoot>
     </table>
     <div class="button-row">
       <button type="button" class="btn btn-secondary" id="addLineBtn">Add line</button>
@@ -134,9 +135,81 @@
 <script>
   const DOCS = {
     crm: "{{ url_for('documents.crm_fetch') }}",
+    crmSearch: "{{ url_for('documents.crm_search_route') }}",
+    crmFiles: "{{ url_for('documents.crm_files_route') }}",
     generate: "{{ url_for('documents.generate') }}",
+    download: "{{ url_for('documents.download_file', name='__N__') }}",
   };
+  function docsDlUrl(name) { return DOCS.download.replace('__N__', encodeURIComponent(name)); }
   function $(id) { return document.getElementById(id); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function extractDealId(s) {
+    const m = s.match(/[?&]id=(\d+)/i) || s.match(/opportunity\/(\d+)/i) || (/^\d{2,}$/.test(s.trim()) ? [null, s.trim()] : null);
+    return m ? m[1] : null;
+  }
+
+  async function crmSearch() {
+    const q = $('crmQuery').value.trim();
+    if (!q) { $('crmMsg').textContent = 'Type a job name or paste a CRM job URL.'; return; }
+    $('crmDeals').innerHTML = '';
+    const id = extractDealId(q);
+    if (id) { return crmLoadInfo(id, ''); }
+    $('crmMsg').textContent = 'Searching deals...';
+    try {
+      const fd = new FormData(); fd.append('query', q);
+      const d = await (await fetch(DOCS.crmSearch, { method: 'POST', body: fd })).json();
+      if (!d.ok) { $('crmMsg').textContent = d.error; return; }
+      renderDeals(d.deals);
+    } catch (e) { $('crmMsg').textContent = 'Search failed: ' + e.message; }
+  }
+
+  function renderDeals(deals) {
+    const box = $('crmDeals'); box.innerHTML = '';
+    if (!deals.length) { $('crmMsg').textContent = 'No open deals match that name.'; return; }
+    $('crmMsg').textContent = 'Pick a deal:';
+    deals.forEach(dl => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-secondary'; b.style.display = 'block'; b.style.marginTop = '6px'; b.style.width = '100%'; b.style.textAlign = 'left';
+      b.innerHTML = '<strong>' + esc(dl.title) + '</strong>' + (dl.stage ? '<br><small>' + esc(dl.stage) + '</small>' : '');
+      b.onclick = () => crmLoadInfo(dl.id, dl.title);
+      box.appendChild(b);
+    });
+  }
+
+  async function crmLoadInfo(id, label) {
+     $('crmDeals').innerHTML = '';
+     $('crmMsg').textContent = 'Loading job information...';
+     try {
+       const fd = new FormData(); fd.append('url', 'https://office.publicadjustermidwest.com/Products/CRM/Deals.aspx?id=' + id);
+      const r = await fetch(DOCS.crm, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (data.ok) {
+        const info = data.info || {};
+        if (info.customer_name) $('customer_name').value = info.customer_name;
+        if (info.claim_number) $('insurance_claim').value = info.claim_number;
+        if (info.job_id) $('job_number').value = info.job_id;
+        if (info.sales_rep) $('sales_rep').value = info.sales_rep;
+        if (info.street) $('street').value = info.street;
+        else if (info.job_location) $('street').value = info.job_location;
+        if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
+        $('crmMsg').textContent = 'Fields filled from CRM.';
+      } else {
+        $('crmMsg').textContent = data.error || 'Could not fetch job details.';
+      }
+    } catch (e) { $('crmMsg').textContent = 'Could not load information: ' + e.message; }
+  }
+
+  $('crmFetchBtn').addEventListener('click', crmSearch);
+  $('crmQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); crmSearch(); } });
+
+  function debounce(fn, ms) {
+    var timer;
+    return function() {
+      clearTimeout(timer);
+      timer = setTimeout(fn, ms);
+    };
+  }
 
   function lineRows() {
     return Array.from(document.querySelectorAll('#lineBody tr')).map(tr => ({
@@ -144,44 +217,64 @@
       amount: tr.querySelector('.li-amt').value,
     }));
   }
+
+  var recalcTimer = null;
   function recalc() {
-    let total = parseFloat($('base_amount').value) || 0;
-    if ($('include_itel').checked) total += 199.80;
-    if ($('include_nts').checked) total += 150.00;
-    lineRows().forEach(r => { total += parseFloat(r.amount) || 0; });
-    $('grandTotal').textContent = total.toFixed(2);
+    clearTimeout(recalcTimer);
+    recalcTimer = setTimeout(function() {
+      let total = parseFloat($('base_amount').value) || 0;
+      if ($('include_itel').checked) total += 199.80;
+      if ($('include_nts').checked) total += 150.00;
+      lineRows().forEach(r => { total += parseFloat(r.amount) || 0; });
+      $('grandTotal').textContent = total.toFixed(2);
+    }, 80);
   }
+
+  var dragRow = null;
   function addLine(desc, amt) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="li-desc" placeholder="Line item" value="${desc || ''}"></td>`
+    tr.draggable = true;
+    tr.innerHTML = `<td class="li-handle" title="Drag to reorder" style="cursor:grab;color:var(--muted);font-size:1.1rem;text-align:center;user-select:none;">\u2630</td>`
+      + `<td><input type="text" class="li-desc" placeholder="Line item" value="${desc || ''}"></td>`
       + `<td class="num"><input type="number" class="li-amt" step="0.01" placeholder="0.00" value="${amt || ''}"></td>`
       + `<td class="num"><button type="button" class="btn btn-secondary li-del" title="Remove">&times;</button></td>`;
     $('lineBody').appendChild(tr);
     tr.querySelector('.li-amt').addEventListener('input', recalc);
     tr.querySelector('.li-del').addEventListener('click', () => { tr.remove(); recalc(); });
+
+    tr.addEventListener('dragstart', function(e) {
+      dragRow = tr;
+      tr.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    tr.addEventListener('dragend', function() {
+      tr.style.opacity = '';
+      dragRow = null;
+      document.querySelectorAll('#lineBody tr').forEach(r => r.classList.remove('drag-over'));
+    });
+    tr.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      tr.classList.add('drag-over');
+    });
+    tr.addEventListener('dragleave', function() { tr.classList.remove('drag-over'); });
+    tr.addEventListener('drop', function(e) {
+      e.preventDefault();
+      tr.classList.remove('drag-over');
+      if (!dragRow || dragRow === tr) return;
+      var body = $('lineBody');
+      var rows = Array.from(body.children);
+      var fromIdx = rows.indexOf(dragRow);
+      var toIdx = rows.indexOf(tr);
+      if (fromIdx < toIdx) {
+        body.insertBefore(dragRow, tr.nextSibling);
+      } else {
+        body.insertBefore(dragRow, tr);
+      }
+    });
   }
   $('addLineBtn').addEventListener('click', () => addLine());
 
-  const crmBtn = $('crmFetchBtn');
-  if (crmBtn) crmBtn.addEventListener('click', async () => {
-    const msg = $('crmMsg'); msg.textContent = 'Looking up...';
-    const fd = new FormData(); fd.append('url', $('crmUrl').value);
-    try {
-      const r = await fetch(DOCS.crm, { method: 'POST', body: fd });
-      const data = await r.json();
-      if (!data.ok) { msg.textContent = data.error || 'Lookup failed.'; return; }
-      const info = data.info || {};
-      if (info.customer_name) $('customer_name').value = info.customer_name;
-      if (info.claim_number) $('insurance_claim').value = info.claim_number;
-      if (info.job_id) $('job_number').value = info.job_id;
-      if (info.sales_rep) $('sales_rep').value = info.sales_rep;
-      // Address split into street and City/State/ZIP by the server.
-      if (info.street) $('street').value = info.street;
-      else if (info.job_location) $('street').value = info.job_location;
-      if (info.city_state_zip) $('city_state_zip').value = info.city_state_zip;
-      msg.textContent = 'Fields filled from CRM.';
-    } catch (e) { msg.textContent = 'Lookup failed: ' + e.message; }
-  });
 
   async function generate(docType) {
     const msg = $('genMsg'); msg.textContent = 'Generating...';
@@ -189,21 +282,23 @@
     $('line_items_json').value = JSON.stringify(lineRows());
     try {
       const r = await fetch(DOCS.generate, { method: 'POST', body: new FormData($('docForm')) });
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/pdf') || ct.includes('application/zip')) {
-        const blob = await r.blob();
-        const cd = r.headers.get('content-disposition') || '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-        const ext = ct.includes('zip') ? '.zip' : '.pdf';
-        const name = m ? decodeURIComponent(m[1]) : (docType + ext);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-        msg.textContent = 'Downloaded ' + name;
-      } else {
-        const data = await r.json().catch(() => ({ error: 'Generation failed.' }));
-        msg.textContent = data.error || 'Generation failed.';
+      const data = await r.json();
+      if (data.error) { msg.textContent = data.error; return; }
+      if (data.ok && data.filename) {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+          msg.textContent = 'Saving...';
+          try {
+            const res = await window.pywebview.api.save_file(data.filename);
+            if (!res.ok && res.error !== 'Save cancelled.') {
+              msg.textContent = res.error || 'Could not save file.';
+            } else {
+              msg.textContent = 'Saved ' + data.filename;
+            }
+          } catch (err) { msg.textContent = 'Save failed: ' + err.message; }
+        } else {
+          window.location.href = docsDlUrl(data.filename);
+          msg.textContent = 'Downloaded ' + data.filename;
+        }
       }
     } catch (e) { msg.textContent = 'Error: ' + e.message; }
   }
