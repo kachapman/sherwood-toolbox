@@ -69,6 +69,53 @@
   margin-top: 12px;
 }
 
+.crm-files-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.crm-files-section select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 0.88rem;
+  background: #fff;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.crm-files-section select:focus {
+  outline: none;
+  border-color: var(--green-800);
+  box-shadow: 0 0 0 3px rgba(74, 154, 79, 0.1);
+}
+
+.extract-status {
+  margin-top: 8px;
+  font-size: 0.87rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  min-height: 0;
+}
+
+.extract-status:empty {
+  display: none;
+}
+
+.extract-status.success {
+  background: var(--sage-50);
+  color: var(--green-800);
+  border-left: 3px solid var(--green-500);
+}
+
+.extract-status.error {
+  background: #fff0f0;
+  color: #c0392b;
+  border-left: 3px solid #e74c3c;
+}
+
 .deal-btn {
   display: flex;
   justify-content: space-between;
